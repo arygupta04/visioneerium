@@ -53,14 +53,15 @@ class TurtleDataset(Dataset):
         image_path = f"{self.path}/{file_name}"
         image = Image.open(image_path)
 
-        # getting the mask for the images
-        mask, bboxes = self.generate_mask(index)
+        # getting the mask,bboxes, labels for the images
+        mask, bboxes, labels = self.generate_mask_bbox_label(index)
 
         # Transform image and mask
         transformations = transforms.Compose([transforms.ToTensor()])
         image = transformations(image)
         mask = transformations(mask)
-        bboxes = torch.tensor(bboxes, dtype=torch.float32)
+        labels = torch.as_tensor(labels, dtype=torch.long)
+        bboxes = torch.as_tensor(bboxes, dtype=torch.float32)
 
         return image, mask, bboxes
 
@@ -82,11 +83,15 @@ class TurtleDataset(Dataset):
 
         # Generate the mask by adding each annotation to this image's mask
         bboxes = []
+        label_id = []
+
         for ann in anns:
+
             mask = np.maximum(mask, self.coco.annToMask(ann))
             bboxes.append(ann["bbox"])
+            label_id.append(ann["category_id"])
 
-        return mask, bboxes
+        return mask, bboxes, label_id
 
 
 def load_data(
@@ -130,3 +135,4 @@ if __name__ == "__main__":
     # pass in the path to the dataset
     a = TurtleDataset("data/turtles-data/data")
     a.__getitem__(3)
+a
