@@ -2,8 +2,9 @@ import torch
 import os
 import cv2
 import numpy as np
-from data import load_data 
+from src.unet.data import load_data
 from torchvision.utils import save_image
+
 
 def save_checkpoint(model, optimizer, filename="checkpoint.pth.tar"):
     """
@@ -15,10 +16,13 @@ def save_checkpoint(model, optimizer, filename="checkpoint.pth.tar"):
         filename: The file name where the checkpoint will be saved.
     """
     print("=> Saving checkpoint")
-    torch.save({
-        'state_dict': model.state_dict(),
-        'optimizer': optimizer.state_dict(),
-    }, filename)
+    torch.save(
+        {
+            "state_dict": model.state_dict(),
+            "optimizer": optimizer.state_dict(),
+        },
+        filename,
+    )
 
 
 def load_checkpoint(model, optimizer, filename="checkpoint.pth.tar"):
@@ -32,8 +36,8 @@ def load_checkpoint(model, optimizer, filename="checkpoint.pth.tar"):
     """
     print("=> Loading checkpoint")
     checkpoint = torch.load(filename)
-    model.load_state_dict(checkpoint['state_dict'])
-    optimizer.load_state_dict(checkpoint['optimizer'])
+    model.load_state_dict(checkpoint["state_dict"])
+    optimizer.load_state_dict(checkpoint["optimizer"])
 
 
 def get_loaders(image_height, image_width, batch_size, num_workers, pin_memory):
@@ -87,7 +91,9 @@ def check_accuracy(loader, model, device="cuda"):
     model.train()
 
 
-def save_predictions_as_imgs(loader, model, epoch, folder="saved_images", device="cuda"):
+def save_predictions_as_imgs(
+    loader, model, epoch, folder="saved_images", device="cuda"
+):
     """
     Save model predictions as images to a specified folder.
 
@@ -114,7 +120,17 @@ def save_predictions_as_imgs(loader, model, epoch, folder="saved_images", device
 
             # Save images and predictions
             for i in range(data.size(0)):
-                save_image(predicted_mask[i], os.path.join(folder, f"epoch{epoch}_batch{batch_id}_image{i}_pred.png"))
-                save_image(targets[i], os.path.join(folder, f"epoch{epoch}_batch{batch_id}_image{i}_target.png"))
+                save_image(
+                    predicted_mask[i],
+                    os.path.join(
+                        folder, f"epoch{epoch}_batch{batch_id}_image{i}_pred.png"
+                    ),
+                )
+                save_image(
+                    targets[i],
+                    os.path.join(
+                        folder, f"epoch{epoch}_batch{batch_id}_image{i}_target.png"
+                    ),
+                )
 
     model.train()

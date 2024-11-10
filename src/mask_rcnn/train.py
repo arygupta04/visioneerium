@@ -6,7 +6,7 @@ from typing import Final
 
 # own modules
 from src.data import load_data
-from src.train_functions import train_step, val_step, test_step
+from src.unet.train_functions import train_step, val_step, test_step
 from src.utils import set_seed, save_model, parameters_to_double
 
 import os
