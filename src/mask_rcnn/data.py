@@ -63,9 +63,9 @@ class TurtleDataset(Dataset):
         labels = torch.as_tensor(labels, dtype=torch.long)
         bboxes = torch.as_tensor(bboxes, dtype=torch.float32)
 
-        return image, mask, bboxes
+        return image, mask, bboxes, labels
 
-    def generate_mask(self, img_id):
+    def generate_mask_bbox_label(self, img_id):
 
         # Initialize COCO object inside __getitem__
 
@@ -134,5 +134,4 @@ if __name__ == "__main__":
     # load_data("data")
     # pass in the path to the dataset
     a = TurtleDataset("data/turtles-data/data")
-    a.__getitem__(3)
-a
+    print(a.__getitem__(3))
