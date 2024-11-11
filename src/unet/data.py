@@ -76,7 +76,7 @@ class TurtleDataset(Dataset):
         ###
 
         ### RESIZE
-        target_size = (512, 512)
+        target_size = (256, 256)
         image = cv2.resize(image, target_size)  # Resize to 256x256 (or 128x128)
         mask = cv2.resize(mask, target_size)    # Resize to the same size
 
