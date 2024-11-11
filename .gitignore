@@ -3,6 +3,7 @@ data/
 models/
 checkpoints/
 
+launch.json
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
