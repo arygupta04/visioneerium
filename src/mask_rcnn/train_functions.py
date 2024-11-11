@@ -28,12 +28,15 @@ def train_step(
         average loss over the training data.
     """
 
+    print("Training...")
+
     model.train()
     tqdm_train_data = tqdm(train_data, desc=f"Epoch {epoch}")
     avg_loss = 0.0
 
-    for data, target in tqdm_train_data:
-        data, target = data.to(device), target.to(device)
+    for i, (data, target) in enumerate(tqdm_train_data):
+        data = [d.to(device) for d in data]
+        target = [{k: v.to(device) for k, v in t.items()} for t in target]
 
         # Zero the gradients
         optimizer.zero_grad()

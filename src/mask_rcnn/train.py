@@ -5,16 +5,17 @@ from torchvision.models.detection import maskrcnn_resnet50_fpn_v2
 # other libraries
 from typing import Final
 import json
+import multiprocessing
 
 # own modules
-from src.data import load_data
+from src.mask_rcnn.data import load_data
 from src.mask_rcnn.train_functions import train_step, val_step, test_step
 from src.utils import set_seed, save_model, parameters_to_double
 
 import os
 
 # static variables
-DATA_PATH: Final[str] = "data"
+DATA_PATH: Final[str] = "data/turtles-data/data"
 
 # set device and seed
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
@@ -27,12 +28,13 @@ def main() -> None:
     """
 
     HPP_DICT = dict(
-        batch_size=128,
+        batch_size=16,
         epochs=30,
         lr=0.001,
         weight_decay=0.0,
         patience=5,
         trainable_backbone_layers=3,
+        num_workers=0,
     )
 
     # Load the data
@@ -47,8 +49,7 @@ def main() -> None:
     model.name = "maskrcnn_resnet_pt_func"
     model.to(device)
 
-    parameters_to_double(model)
-    print(model)
+    # parameters_to_double(model)
 
     # Create the optimizer
     optimizer = torch.optim.Adam(
