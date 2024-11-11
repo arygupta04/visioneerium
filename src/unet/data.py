@@ -19,7 +19,7 @@ coco = COCO(r"C:\Users\vedan\Desktop\COMP9517\COMP9517 group project\turtles-dat
 class TurtleDataset(Dataset):
 
     # Constructor of TurtleDataset
-    def __init__(self, split_type: str ,path: str) -> None:
+    def __init__(self, split_type: str, path: str) -> None:
         self.path = path
         self.names = os.listdir(path)
         self.split_type = split_type
