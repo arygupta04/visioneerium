@@ -16,7 +16,7 @@ from utils import(
 )
 
 # Hyperparameters etc.
-LEARNING_RATE = 1e-4
+LEARNING_RATE = 0.5
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 BATCH_SIZE = 6
 NUM_EPOCHS = 1
@@ -109,26 +109,31 @@ def main():
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
     loss_fn = nn.CrossEntropyLoss()  # Cross entropy loss
 
-    # Get data loaders
-    train_loader, val_loader, test_loader = load_data(
-        rf"C:\Users\vedan\Desktop\COMP9517\COMP9517 group project\turtles-data\data\images", 
-        batch_size=BATCH_SIZE, 
-        num_workers=NUM_WORKERS
-    )
+    if LOAD_MODEL:
+        load_checkpoint(model, optimizer)
+    else:
+        # Get data loaders
+        train_loader, val_loader, test_loader = load_data(
+            rf"C:\Users\vedan\Desktop\COMP9517\COMP9517 group project\turtles-data\data\images", 
+            batch_size=BATCH_SIZE, 
+            num_workers=NUM_WORKERS
+        )
 
-    # Training loop
-    for epoch in range(NUM_EPOCHS):
-        print(f"Epoch {epoch + 1}/{NUM_EPOCHS}")
+        # Training loop
+        for epoch in range(NUM_EPOCHS):
+            print(f"Epoch {epoch + 1}/{NUM_EPOCHS}")
 
-        train_fn(train_loader, model, optimizer, loss_fn)
+            train_fn(train_loader, model, optimizer, loss_fn)
 
-        # Check accuracy on validation set
-        check_accuracy(val_loader, model, device=DEVICE)
-    
+            save_checkpoint(model, optimizer, filename=f"checkpoint_epoch_{epoch + 1}.pth.tar")
+
+            # Check accuracy on validation set
+            check_accuracy(val_loader, model, device=DEVICE)
+        
 
 
-    #####
-    test_fn(test_loader, model, device=DEVICE)
+        #####
+        #test_fn(test_loader, model, device=DEVICE)
 
         
 

@@ -76,7 +76,7 @@ class TurtleDataset(Dataset):
         ###
 
         ### RESIZE
-        target_size = (256, 256)
+        target_size = (32, 32)
         image = cv2.resize(image, target_size)  # Resize to 256x256 (or 128x128)
         mask = cv2.resize(mask, target_size)    # Resize to the same size
 
@@ -100,25 +100,6 @@ class TurtleDataset(Dataset):
         return padded_img
 
 
-    # def generate_mask(self, img_id):
-
-    #     cat_ids =  coco.getCatIds()
-
-    #     # Load the single image
-    #     img = coco.loadImgs([img_id])[0]
-        
-    #     # Load annotations for this image ID
-    #     anns_ids = coco.getAnnIds(imgIds=[img_id], catIds=cat_ids, iscrowd=None)
-    #     anns = coco.loadAnns(anns_ids)
-
-    #     # Initialize an empty mask for this image
-    #     mask = np.zeros((img['height'], img['width']), dtype=np.uint8)
-
-    #     # Generate the mask by adding each annotation to this image's mask
-    #     for ann in anns:
-    #         mask = np.maximum(mask, coco.annToMask(ann))
-
-    #     return mask
     def generate_mask(self, img_id):
         # Vectorized mask generation
         anns = coco.loadAnns(coco.getAnnIds(imgIds=[img_id], catIds=coco.getCatIds(), iscrowd=None))

@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 from data import load_data 
 from torchvision.utils import save_image
+import matplotlib.pyplot as plt
 
 def save_checkpoint(model, optimizer, filename="checkpoint.pth.tar"):
     """
@@ -70,7 +71,7 @@ def check_accuracy(loader, model, device="cuda"):
     total_pixels = 0
 
     with torch.no_grad():
-        for data, targets in loader:
+        for batch_idx, (data, targets) in enumerate(loader):
             data = data.to(device)
             targets = targets.to(device)
 
@@ -83,6 +84,30 @@ def check_accuracy(loader, model, device="cuda"):
             # Count correctly predicted pixels
             correct_pixels += (predicted == targets).sum().item()
             total_pixels += targets.numel()
+
+            # Display the first image, its predicted mask, and target mask
+            if batch_idx == 0:
+                data = data.cpu().numpy()  # Convert tensor to numpy
+                targets = targets.cpu().numpy()  # Convert tensor to numpy
+                predicted = predicted.cpu().numpy()  # Convert tensor to numpy
+
+                # Plot the input image, predicted mask, and target mask
+                fig, axes = plt.subplots(1, 3, figsize=(12, 4))
+                if data[0].shape[0] > 3:
+                    data_rgb = data[0][:3].transpose(1, 2, 0)
+                else:
+                    data_rbg = data[0].transpose(1, 2, 0)
+                axes[0].imshow(data_rgb)  # Input image (Numpy array, channel last)
+                axes[0].set_title("Input Image")
+                
+                axes[1].imshow(predicted[0].squeeze(), cmap="gray")  # Predicted mask
+                axes[1].set_title("Predicted Mask")
+                
+                axes[2].imshow(targets[0].squeeze(), cmap="gray")  # Target mask
+                axes[2].set_title("Target Mask")
+                
+                plt.show()
+                break  # Exit after the first batch
 
     # Calculate accuracy as percentage of correctly predicted pixels
     accuracy = 100 * correct_pixels / total_pixels
