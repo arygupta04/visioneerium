@@ -49,8 +49,8 @@ def train_step(
         total_loss.backward()
         optimizer.step()
 
-        tqdm_train_data.set_postfix(loss=loss.item())
-        avg_loss += loss.item()
+        tqdm_train_data.set_postfix(loss=sum(loss.values()).item())
+        avg_loss += sum(loss.values()).item()
 
     avg_loss /= len(train_data)
     return avg_loss

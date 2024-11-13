@@ -11,6 +11,7 @@ import numpy as np
 # other libraries
 import os
 from PIL import Image
+import pandas as pd
 
 
 class TurtleDataset(Dataset):
@@ -34,6 +35,8 @@ class TurtleDataset(Dataset):
             ]
         )
         self.image_size = image_size
+        metadata = pd.read_csv(f"{path}/metadata_splits.csv")
+        self.img_ids = metadata["id"].tolist()
         self.bboxes, self.labels, self.file_names = self.preload()
 
         print(f"Dataset 'TurtleDataset' initialized with {len(self)} images.")
@@ -60,12 +63,12 @@ class TurtleDataset(Dataset):
 
         bboxes = {ann["image_id"]: [] for ann in anns}
         labels = {ann["image_id"]: [] for ann in anns}
-        file_names = []
+        file_names = {}
 
         print("Preloading bboxes, labels, and file names...")
         for ann in tqdm(anns):
             img = self.coco.loadImgs(ann["image_id"])[0]
-            file_names.append(img["file_name"])
+            file_names[ann["image_id"]] = img["file_name"]
             bboxes[ann["image_id"]].append(ann["bbox"])
             labels[ann["image_id"]].append(ann["category_id"])
 
@@ -81,30 +84,57 @@ class TurtleDataset(Dataset):
         Returns:
             tuple: A tuple containing the image tensor and a dictionary of masks, bounding boxes, and labels.
         """
-        image_path = f"{self.path}/{self.file_names[index]}"
+        img_id = self.img_ids[index]
+        image_path = f"{self.path}/{self.file_names[img_id]}"
         image = Image.open(image_path)
+
         bboxes = self.bboxes[index]
         bboxes[:, 2] += bboxes[:, 0]
         bboxes[:, 3] += bboxes[:, 1]
+
         labels = self.labels[index]
 
-        img2tensor = transforms.Compose(
-            [
-                transforms.ToTensor(),
-            ]
-        )
+        img2tensor = transforms.ToTensor()
 
-        masks = torch.stack(
-            [
-                torch.load(f"{self.path}/masks/{index}/{file_name}")
-                for file_name in os.listdir(f"{self.path}/masks/{index}")
-            ]
-        )
+        masks = self.generate_mask(img_id, image)
+
         image = img2tensor(image)
-        bboxes = torch.tensor(bboxes, dtype=torch.int64)
+        bboxes = torch.tensor(bboxes, dtype=torch.float32)
         labels = torch.tensor(labels, dtype=torch.int64)
 
+        # Resize bounding boxes
+        orig_width, orig_height = image.size(2), image.size(1)
+        new_width, new_height = self.image_size
+        scale_x = new_width / orig_width
+        scale_y = new_height / orig_height
+
+        bboxes[:, [0, 2]] = bboxes[:, [0, 2]] * scale_x
+        bboxes[:, [1, 3]] = bboxes[:, [1, 3]] * scale_y
+
+        resize_transform = transforms.Resize(self.image_size, antialias=True)
+        image = resize_transform(image)
+        masks = resize_transform(masks)
+
         return image, {"masks": masks, "boxes": bboxes, "labels": labels}
+
+    def generate_mask(self, img_id: int, img: Image.Image) -> torch.Tensor:
+
+        cat_ids = self.coco.getCatIds()
+
+        # Load annotations for this image ID
+        anns_ids = self.coco.getAnnIds(imgIds=[img_id], catIds=cat_ids, iscrowd=None)
+        anns = self.coco.loadAnns(anns_ids)
+
+        # Initialize an empty mask for this image
+        masks = torch.zeros((len(anns), img.size[1], img.size[0]), dtype=torch.bool)
+
+        # Generate the mask by adding each annotation to this image's mask
+        for i, ann in enumerate(anns):
+            mask = self.coco.annToMask(ann)
+            mask = torch.tensor(mask, dtype=torch.bool)
+            masks[i] = mask
+
+        return masks
 
 
 def display_image_with_masks(
@@ -155,9 +185,7 @@ def load_and_save_masks(path: str, coco: COCO = None) -> None:
         torch.save(mask, f"{path}/masks/{ann['image_id']}/{ann['id']}.pt")
 
 
-def load_data(
-    path: str, hpp_dict: dict, image_size: tuple[int, int] = (256, 256)
-) -> tuple[DataLoader, DataLoader, DataLoader]:
+def load_data(path: str, hpp_dict: dict) -> tuple[DataLoader, DataLoader, DataLoader]:
     """
     Returns dataloaders for training, validation, and test sets.
 
@@ -169,7 +197,7 @@ def load_data(
         tuple: Tuple of dataloaders, train, val, and test in respective order.
     """
     # create datasets
-    full_dataset = TurtleDataset(f"{path}")
+    full_dataset = TurtleDataset(f"{path}", hpp_dict["img_size"])
     train_dataset, val_dataset, test_dataset = random_split(
         full_dataset,
         [

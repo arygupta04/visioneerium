@@ -35,6 +35,7 @@ def main() -> None:
         patience=5,
         trainable_backbone_layers=3,
         num_workers=0,
+        img_size=(256, 256),
     )
 
     # Load the data
