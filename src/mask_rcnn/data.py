@@ -94,16 +94,10 @@ class TurtleDataset(Dataset):
 
         labels = self.labels[index]
 
-        img2tensor = transforms.ToTensor()
-
         masks = self.generate_mask(img_id, image)
 
-        image = img2tensor(image)
-        bboxes = torch.tensor(bboxes, dtype=torch.float32)
-        labels = torch.tensor(labels, dtype=torch.int64)
-
         # Resize bounding boxes
-        orig_width, orig_height = image.size(2), image.size(1)
+        orig_width, orig_height = image.size
         new_width, new_height = self.image_size
         scale_x = new_width / orig_width
         scale_y = new_height / orig_height
@@ -111,13 +105,17 @@ class TurtleDataset(Dataset):
         bboxes[:, [0, 2]] = bboxes[:, [0, 2]] * scale_x
         bboxes[:, [1, 3]] = bboxes[:, [1, 3]] * scale_y
 
-        resize_transform = transforms.Resize(self.image_size, antialias=True)
-        image = resize_transform(image)
-        masks = resize_transform(masks)
+        image.resize(self.image_size)
+        masks.resize(self.image_size)
+        image = transforms.ToTensor()(image)
+        masks = torch.tensor(masks, dtype=torch.bool)
+
+        bboxes = torch.tensor(bboxes, dtype=torch.float32)
+        labels = torch.tensor(labels, dtype=torch.int64)
 
         return image, {"masks": masks, "boxes": bboxes, "labels": labels}
 
-    def generate_mask(self, img_id: int, img: Image.Image) -> torch.Tensor:
+    def generate_mask(self, img_id: int, img: Image.Image) -> np.ndarray:
 
         cat_ids = self.coco.getCatIds()
 
@@ -126,12 +124,11 @@ class TurtleDataset(Dataset):
         anns = self.coco.loadAnns(anns_ids)
 
         # Initialize an empty mask for this image
-        masks = torch.zeros((len(anns), img.size[1], img.size[0]), dtype=torch.bool)
+        masks = np.zeros((len(anns), img.size[1], img.size[0]), dtype=bool)
 
         # Generate the mask by adding each annotation to this image's mask
         for i, ann in enumerate(anns):
-            mask = self.coco.annToMask(ann)
-            mask = torch.tensor(mask, dtype=torch.bool)
+            mask = self.coco.annToMask(ann).astype(bool)
             masks[i] = mask
 
         return masks
