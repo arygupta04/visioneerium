@@ -33,7 +33,7 @@ def main() -> None:
         lr=0.001,
         weight_decay=0.0,
         patience=5,
-        trainable_backbone_layers=3,
+        trainable_backbone_layers=2,
         num_workers=0,
         img_size=(256, 256),
     )

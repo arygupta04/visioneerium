@@ -10,7 +10,7 @@ import numpy as np
 
 # other libraries
 import os
-from PIL import Image
+import cv2
 import pandas as pd
 
 
@@ -86,7 +86,8 @@ class TurtleDataset(Dataset):
         """
         img_id = self.img_ids[index]
         image_path = f"{self.path}/{self.file_names[img_id]}"
-        image = Image.open(image_path)
+        image = cv2.imread(image_path)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
         bboxes = self.bboxes[index]
         bboxes[:, 2] += bboxes[:, 0]
@@ -97,7 +98,7 @@ class TurtleDataset(Dataset):
         masks = self.generate_mask(img_id, image)
 
         # Resize bounding boxes
-        orig_width, orig_height = image.size
+        orig_width, orig_height = image.shape[:2]
         new_width, new_height = self.image_size
         scale_x = new_width / orig_width
         scale_y = new_height / orig_height
@@ -108,14 +109,14 @@ class TurtleDataset(Dataset):
         image.resize(self.image_size)
         masks.resize(self.image_size)
         image = transforms.ToTensor()(image)
-        masks = torch.tensor(masks, dtype=torch.bool)
+        masks = torch.tensor(masks, dtype=torch.uint8)
 
         bboxes = torch.tensor(bboxes, dtype=torch.float32)
         labels = torch.tensor(labels, dtype=torch.int64)
 
         return image, {"masks": masks, "boxes": bboxes, "labels": labels}
 
-    def generate_mask(self, img_id: int, img: Image.Image) -> np.ndarray:
+    def generate_mask(self, img_id: int, img: np.ndarray) -> np.ndarray:
 
         cat_ids = self.coco.getCatIds()
 
@@ -124,11 +125,11 @@ class TurtleDataset(Dataset):
         anns = self.coco.loadAnns(anns_ids)
 
         # Initialize an empty mask for this image
-        masks = np.zeros((len(anns), img.size[1], img.size[0]), dtype=bool)
+        masks = np.zeros((len(anns), img.shape[0], img.shape[1]), dtype=np.uint8)
 
         # Generate the mask by adding each annotation to this image's mask
         for i, ann in enumerate(anns):
-            mask = self.coco.annToMask(ann).astype(bool)
+            mask = self.coco.annToMask(ann).astype(np.uint8)
             masks[i] = mask
 
         return masks
@@ -148,7 +149,7 @@ def display_image_with_masks(
     mask = torch.load(mask_file)
     image_id = int(mask_file.split("/")[-2])
     image_path = f"{path}/{coco.loadImgs(image_id)[0]['file_name']}"
-    image = Image.open(image_path)
+    image = cv2.imread(image_path)
 
     mask = mask.numpy()
     mask = np.where(mask, 0, 255).astype(np.uint8)
@@ -156,7 +157,7 @@ def display_image_with_masks(
     image = np.array(image)
     image = np.where(mask[..., None], image, 0)
 
-    Image.fromarray(image).show()
+    cv2.imshow("Image", image)
 
 
 def load_and_save_masks(path: str, coco: COCO = None) -> None:
@@ -178,7 +179,7 @@ def load_and_save_masks(path: str, coco: COCO = None) -> None:
         os.makedirs(f"{path}/masks/{ann['image_id']}", exist_ok=True)
 
         mask = coco.annToMask(ann)
-        mask = torch.tensor(mask, dtype=torch.bool)
+        mask = torch.tensor(mask, dtype=torch.uint8)
         torch.save(mask, f"{path}/masks/{ann['image_id']}/{ann['id']}.pt")
 
 
@@ -249,7 +250,7 @@ def find_max_img_size(path: str) -> tuple[int, int]:
     files = os.walk(os.path.expanduser(f"{path}/images"))
     for dp, _, fn in tqdm(files, desc="Finding max image size"):
         for f in fn:
-            img = Image.open(os.path.join(dp, f))
+            img = cv2.imread(os.path.join(dp, f))
             max_width = max(max_width, img.size[0])
             max_height = max(max_height, img.size[1])
     return max_width, max_height
