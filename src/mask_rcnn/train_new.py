@@ -1,7 +1,10 @@
 # deep learning libraries
 import torch
-from torchvision.models.detection import maskrcnn_resnet50_fpn_v2
-from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
+import torchvision
+from torchvision.models import regnet_y_400mf
+from torchvision.models.detection.mask_rcnn import MaskRCNN
+from torchvision.models.detection.rpn import AnchorGenerator
+from torchvision.ops import MultiScaleRoIAlign
 
 
 # other libraries
@@ -36,7 +39,7 @@ def main() -> None:
         patience=5,
         trainable_backbone_layers=2,
         num_workers=0,
-        img_size=(256, 256),
+        img_factor=8,
     )
 
     # Load the data
@@ -44,12 +47,30 @@ def main() -> None:
     print("Data loaded")
 
     # Create the model
-    model = maskrcnn_resnet50_fpn_v2(
-        weights="DEFAULT",
-        trainable_backbone_layers=HPP_DICT["trainable_backbone_layers"],
-    )  # TODO temporary, choose another backbone
-    model.name = "maskrcnn_resnet_pt_func"
-    model.to(device)
+    backbone = torchvision.models.mobilenet_v2(weights="DEFAULT").features
+    backbone.out_channels = 1280
+
+    anchor_generator = AnchorGenerator(
+        sizes=((32, 64, 128, 256, 512),),
+        aspect_ratios=((0.5, 1.0, 2.0),),
+    )
+    roi_pooler = MultiScaleRoIAlign(
+        featmap_names=["0"],
+        output_size=7,
+        sampling_ratio=2,
+    )
+    model = MaskRCNN(
+        backbone,
+        num_classes=4,
+        rpn_anchor_generator=anchor_generator,
+        box_roi_pool=roi_pooler,
+    ).to(device)
+    model.name = "maskrcnn_regnet_y_400mf"
+
+    print("Model created")
+    images, targets = next(iter(train_loader))
+    images = [image.to(device) for image in images]
+    targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
     # parameters_to_double(model)
 

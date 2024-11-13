@@ -19,7 +19,7 @@ class TurtleDataset(Dataset):
     Custom Dataset for loading turtle images and annotations.
     """
 
-    def __init__(self, path: str, image_size: tuple[int, int] = (256, 256)) -> None:
+    def __init__(self, path: str, image_factor: int = 1) -> None:
         """
         Args:
             path (str): Path to the dataset directory.
@@ -34,7 +34,7 @@ class TurtleDataset(Dataset):
                 for f in fn
             ]
         )
-        self.image_size = image_size
+        self.image_factor = image_factor
         metadata = pd.read_csv(f"{path}/metadata_splits.csv")
         self.img_ids = metadata["id"].tolist()
         self.bboxes, self.labels, self.file_names = self.preload()
@@ -97,24 +97,35 @@ class TurtleDataset(Dataset):
 
         masks = self.generate_mask(img_id, image)
 
-        # Resize bounding boxes
+        # Resize the image, bounding boxes, and masks
         orig_width, orig_height = image.shape[:2]
-        new_width, new_height = self.image_size
-        scale_x = new_width / orig_width
-        scale_y = new_height / orig_height
 
-        bboxes[:, [0, 2]] = bboxes[:, [0, 2]] * scale_x
-        bboxes[:, [1, 3]] = bboxes[:, [1, 3]] * scale_y
+        bboxes[:, [0, 2]] = bboxes[:, [0, 2]] / self.image_factor
+        bboxes[:, [1, 3]] = bboxes[:, [1, 3]] / self.image_factor
 
-        image.resize(self.image_size)
-        masks.resize(self.image_size)
+        image.resize(
+            (orig_width // self.image_factor, orig_height // self.image_factor)
+        )
+        masks.resize(
+            (
+                masks.shape[0],
+                orig_width // self.image_factor,
+                orig_height // self.image_factor,
+            )
+        )
+
         image = transforms.ToTensor()(image)
         masks = torch.tensor(masks, dtype=torch.uint8)
 
         bboxes = torch.tensor(bboxes, dtype=torch.float32)
         labels = torch.tensor(labels, dtype=torch.int64)
 
-        return image, {"masks": masks, "boxes": bboxes, "labels": labels}
+        return image, {
+            "masks": masks,
+            "boxes": bboxes,
+            "labels": labels,
+            "image_id": torch.tensor([img_id]),
+        }
 
     def generate_mask(self, img_id: int, img: np.ndarray) -> np.ndarray:
 
@@ -195,7 +206,7 @@ def load_data(path: str, hpp_dict: dict) -> tuple[DataLoader, DataLoader, DataLo
         tuple: Tuple of dataloaders, train, val, and test in respective order.
     """
     # create datasets
-    full_dataset = TurtleDataset(f"{path}", hpp_dict["img_size"])
+    full_dataset = TurtleDataset(f"{path}", hpp_dict["img_factor"])
     train_dataset, val_dataset, test_dataset = random_split(
         full_dataset,
         [
