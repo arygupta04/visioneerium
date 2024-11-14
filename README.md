@@ -29,6 +29,28 @@ git clone https://github.com/arygupta04/visioneerium.git
 
 # Navigate to the directory
 cd visioneerium
+
+# Install libraries and packages
+# PyTorch and related libraries
+pip install torch torchvision torchaudio
+
+# Albumentations and image processing
+pip install albumentations opencv-python-headless pillow matplotlib
+
+# TQDM for progress bars
+pip install tqdm
+
+# Segmentation models (includes pre-trained models for PyTorch)
+pip install segmentation-models-pytorch
+
+# PyCOCOTools for working with COCO dataset annotations
+pip install pycocotools
+
+# Pandas for data handling
+pip install pandas
+
+# simplecrf library for CRF (Conditional Random Fields) post-processing
+pip install simplecrf
 ```
 
 # Running the project
