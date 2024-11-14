@@ -2,26 +2,25 @@ import os
 import cv2
 import torch
 import numpy as np
-from torch.utils.data  import Dataset
+from torch.utils.data import Dataset
 from pycocotools.coco import COCO
-import pycocotools.mask as cocoMask 
+import pycocotools.mask as cocoMask
 from torchvision import transforms
 from PIL import Image
-from matplotlib import pyplot as plt
 from torch.utils.data import Dataset, DataLoader
 import pandas as pd
-from skimage import io
 
-coco = COCO(r"C:\Users\vedan\Desktop\COMP9517\COMP9517 group project\turtles-data\data\annotations.json")
 
 class TurtleDataset(Dataset):
-    def __init__(self, split_type: str, path:str) -> None:
+
+    def __init__(self, split_type: str, path: str) -> None:
         self.path = path
+        self.coco = COCO(self.path + "/annotations.json")
         self.names = os.listdir(path)
         self.split_type = split_type
-    
-        metadata = pd.read_csv(r"C:\Users\vedan\Desktop\COMP9517\COMP9517 group project\turtles-data\data\metadata_splits.csv")
-        self.img_ids = metadata[metadata['split_open'] == split_type]['id'].tolist()
+
+        metadata = pd.read_csv(self.path + "/metadata_splits.csv")
+        self.img_ids = metadata[metadata["split_open"] == split_type]["id"].tolist()
         self.max_width, self.max_height = self.find_max_dimensions()
 
         print(rf"{self.max_height} x {self.max_width}")
@@ -30,34 +29,37 @@ class TurtleDataset(Dataset):
     def load_labels(self):
         labels = {}
         for img_id in self.img_ids:
-            ann_ids = coco.getAnnIds(imgIds=img_id)
-            anns = coco.loadAnns(ann_ids)
-            img_labels = [ann['category_id'] for ann in anns]
+            ann_ids = self.coco.getAnnIds(imgIds=img_id)
+            anns = self.coco.loadAnns(ann_ids)
+            img_labels = [ann["category_id"] for ann in anns]
             labels[img_id] = img_labels
         return labels
-    
-    
+
     def generate_mask(self, img_id: int, img: np.ndarray) -> np.ndarray:
-        img_info = coco.loadImgs(img_id)[0]
-        img_width = img_info['width']
-        img_height = img_info['height']
+        img_info = self.coco.loadImgs(img_id)[0]
+        img_width = img_info["width"]
+        img_height = img_info["height"]
         mask_head = np.zeros((img_height, img_width), dtype=np.uint8)
         mask_carapace = np.zeros((img_height, img_width), dtype=np.uint8)
         mask_flippers = np.zeros((img_height, img_width), dtype=np.uint8)
 
-        cat_ids = coco.getCatIds()
-        anns_ids = coco.getAnnIds(imgIds=img_id, catIds=cat_ids, iscrowd=None)
-        anns = coco.loadAnns(anns_ids)
+        cat_ids = self.coco.getCatIds()
+        anns_ids = self.coco.getAnnIds(imgIds=img_id, catIds=cat_ids, iscrowd=None)
+        anns = self.coco.loadAnns(anns_ids)
 
         for ann in anns:
-            cat_id = ann['category_id']
-            rle = ann['segmentation']
-            segmentation = ann['segmentation']
-            
+            cat_id = ann["category_id"]
+            rle = ann["segmentation"]
+            segmentation = ann["segmentation"]
+
             # Check if segmentation is in uncompressed RLE format
-            if isinstance(segmentation, dict) and 'counts' in segmentation and isinstance(segmentation['counts'], list):
+            if (
+                isinstance(segmentation, dict)
+                and "counts" in segmentation
+                and isinstance(segmentation["counts"], list)
+            ):
                 # Convert uncompressed RLE to compressed RLE
-                rle = cocoMask.frPyObjects([segmentation], *segmentation['size'])[0]
+                rle = cocoMask.frPyObjects([segmentation], *segmentation["size"])[0]
             else:
                 rle = segmentation  # Already in compressed format
 
@@ -65,7 +67,7 @@ class TurtleDataset(Dataset):
             rle_mask = cocoMask.decode(rle)
             rle_mask = np.array(Image.fromarray(rle_mask))
 
-             # Assign each category to its respective mask
+            # Assign each category to its respective mask
             if cat_id == 1:  # Turtle body
                 mask_carapace[rle_mask == 1] = 1
             elif cat_id == 2:  # Flippers
@@ -75,7 +77,9 @@ class TurtleDataset(Dataset):
 
         # Combine masks: head and flippers take precedence over the turtle body
         mask = np.maximum(mask_carapace, mask_flippers)  # Ensure flippers overlay body
-        mask = np.maximum(mask, mask_head)  # Ensure head overlays both body and flippers
+        mask = np.maximum(
+            mask, mask_head
+        )  # Ensure head overlays both body and flippers
 
         # print("printing")
         # plt.imshow(mask)
@@ -84,63 +88,58 @@ class TurtleDataset(Dataset):
         # plt.show()
         return mask
 
-
-
-
-
-
-
-
-
     def display_img_and_mask(self, img_id):
-        img = coco.imgs[img_id]
-        image = np.array(Image.open(img['file_name']))
+        img = self.coco.imgs[img_id]
+        image = np.array(Image.open(img["file_name"]))
 
-        #image
+        # image
 
-        cat_ids = coco.getCatIds()
-        anns_ids = coco.getAnnIds(imgIds=img['id'], catIds=cat_ids, iscrowd=None)
-        anns = coco.loadAnns(anns_ids)
+        cat_ids = self.coco.getCatIds()
+        anns_ids = self.coco.getAnnIds(imgIds=img["id"], catIds=cat_ids, iscrowd=None)
+        anns = self.coco.loadAnns(anns_ids)
 
-        mask = coco.annToMask(anns[0])
+        mask = self.coco.annToMask(anns[0])
         for i in range(len(anns)):
-            mask += coco.annToMask(anns[i])
-        
+            mask += self.coco.annToMask(anns[i])
+
     def find_max_dimensions(self):
         max_width, max_height = 0, 0
         for img_id in self.img_ids:
-            img_info = coco.imgs[img_id]
-            width, height = img_info['width'], img_info['height']
+            img_info = self.coco.imgs[img_id]
+            width, height = img_info["width"], img_info["height"]
             max_width = max(max_width, width)
             max_height = max(max_height, height)
-        return max_width, max_height 
+        return max_width, max_height
 
     def __len__(self) -> int:
         return len(self.img_ids)
-    
 
     def __getitem__(self, index: int) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
         img_id = self.img_ids[index]
-        image_info = coco.loadImgs(img_id)
-        
-        file_name = image_info[0]['file_name']
+        image_info = self.coco.loadImgs(img_id)
+
+        file_name = image_info[0]["file_name"]
         image_path = rf"C:\Users\vedan\Desktop\COMP9517\COMP9517 group project\turtles-data\data\{file_name}"
         image = cv2.imread(image_path)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
         labels = torch.tensor(self.labels[img_id], dtype=torch.int64)
-        
+
         # Generate the combined mask
         mask = self.generate_mask(img_id, image)
 
         # Padding
         pad_height = self.max_height - image.shape[0]
         pad_width = self.max_width - image.shape[1]
-        image = cv2.copyMakeBorder(image, 0, pad_height, 0, pad_width, cv2.BORDER_CONSTANT, value=[0, 0, 0])
-        padded_mask = cv2.copyMakeBorder(mask, 0, pad_height, 0, pad_width, cv2.BORDER_CONSTANT, value=0)
-        
+        image = cv2.copyMakeBorder(
+            image, 0, pad_height, 0, pad_width, cv2.BORDER_CONSTANT, value=[0, 0, 0]
+        )
+        padded_mask = cv2.copyMakeBorder(
+            mask, 0, pad_height, 0, pad_width, cv2.BORDER_CONSTANT, value=0
+        )
+
         # Resize image and mask
-        target_size = (32, 32)
+        target_size = (256, 256)
         image = cv2.resize(image, target_size)
         padded_mask = cv2.resize(padded_mask, target_size)
 
@@ -151,9 +150,9 @@ class TurtleDataset(Dataset):
         # Convert the mask to tensor
         padded_mask = torch.tensor(padded_mask, dtype=torch.uint8)
 
-        return image, padded_mask 
+        return image, padded_mask
 
-    
+
 def load_data(
     path: str, batch_size: int = 128, num_workers: int = 0
 ) -> tuple[DataLoader, DataLoader, DataLoader]:
@@ -170,9 +169,9 @@ def load_data(
     """
 
     # create datasets
-    train_dataset = TurtleDataset('train', path)
-    val_dataset = TurtleDataset('valid', path)
-    test_dataset = TurtleDataset('test', path)
+    train_dataset = TurtleDataset("train", path)
+    val_dataset = TurtleDataset("valid", path)
+    test_dataset = TurtleDataset("test", path)
 
     # im = coco.loadImgs(1)[0]
     # file_name = im['file_name']
@@ -180,10 +179,10 @@ def load_data(
     # I = io.imread(img_path)
 
     # train_dataset.generate_mask(1, I)
-    
-     # define dataloaders
+
+    # define dataloaders
     train_dataloader = DataLoader(
-train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers
+        train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers
     )
     val_dataloader = DataLoader(
         val_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers
@@ -196,4 +195,6 @@ train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers
 
 
 if __name__ == "__main__":
-    train_loader, val_loader, test_loader = load_data(r"C:\Users\vedan\Desktop\COMP9517\COMP9517 group project\turtles-data\data\images")
+    train_loader, val_loader, test_loader = load_data(
+        r"C:\Users\vedan\Desktop\COMP9517\COMP9517 group project\turtles-data\data\images"
+    )
