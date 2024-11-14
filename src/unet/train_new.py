@@ -10,11 +10,8 @@ from torch.cuda.amp import GradScaler, autocast
 
 from src.unet.data import load_data
 from src.unet.utils import (
-    load_checkpoint,
     save_checkpoint,
-    get_loaders,
     check_accuracy,
-    save_predictions_as_imgs,
 )
 import warnings
 
@@ -30,6 +27,7 @@ IMAGE_HEIGHT = 2016
 IMAGE_WIDTH = 2016
 PIN_MEMORY = True
 LOAD_MODEL = False
+PATH = "data/turtles-data/data"
 
 # Initialize scaler
 scaler = GradScaler()
@@ -60,11 +58,18 @@ def train_fn(loader, model, optimizer, loss_fn, scaler):
 def main():
 
     #  # Initialize pre-built UNET model (from segmentation_models_pytorch)
-    model = smp.Unet(
-        encoder_name="resnet18",  # Smaller model for lower memory usage
+    # model = smp.Unet(
+    #     encoder_name="resnet18",  # Smaller model for lower memory usage
+    #     encoder_weights="imagenet",
+    #     in_channels=3,
+    #     classes=4,
+    # ).to(DEVICE)
+
+    model = smp.DeepLabV3Plus(
+        encoder_name="resnet18",
         encoder_weights="imagenet",
         in_channels=3,
-        classes=1,
+        classes=4,
     ).to(DEVICE)
 
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
@@ -72,7 +77,7 @@ def main():
 
     # Get data loaders
     train_loader, val_loader, test_loader = load_data(
-        "data/turtles-data/data/images",
+        path=PATH,
         batch_size=BATCH_SIZE,
         num_workers=NUM_WORKERS,
     )
