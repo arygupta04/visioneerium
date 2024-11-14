@@ -23,11 +23,13 @@ The dataset can be downloaded from this link: https://www.kaggle.com/datasets/wi
 
 # Installation
 
-**Clone the Repository:**
+```bash
+# Clone the repository
+git clone https://github.com/arygupta04/visioneerium.git
 
-`git clone https://github.com/arygupta04/visioneerium.git`
-
-`cd visioneerium`
+# Navigate to the directory
+cd visioneerium
+```
 
 # Running the project
 
