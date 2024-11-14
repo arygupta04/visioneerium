@@ -174,7 +174,7 @@ def check_accuracy(loader, model, device="cuda"):
 
 
 def save_predictions_as_imgs(
-    loader, model, epoch, folder="saved_images", device="cuda"
+    loader, model, epoch, folder="saved_images", device="cuda", crf=False
 ):
     """
     Save model predictions as images to a specified folder.
@@ -196,6 +196,18 @@ def save_predictions_as_imgs(
 
             # Forward pass
             predictions = model(data)
+
+            if crf:
+                # Apply CRF
+                probabilities = torch.sigmoid(predictions)
+
+                refined_masks = []
+                for i in range(len(data)):
+                    original_image = data[i].cpu().permute(1, 2, 0).numpy()
+                    refined_mask = apply_simple_crf(original_image, probabilities[i])
+                    refined_masks.append(refined_mask)
+
+                predictions = torch.tensor(refined_masks)
 
             # Convert predictions to binary mask
             predicted_mask = torch.sigmoid(predictions) > 0.5
