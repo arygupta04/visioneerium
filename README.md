@@ -1,6 +1,6 @@
 # Overview
 
-This project aims to segment sea turtles from photographs using computer vision and deep learning techniques. We employed two advanced segmentation models: U-Net and Mask R-CNN. The objective was to accurately identify the head, flippers, and carapace of sea turtles in the given dataset, which contains diverse images from different environmental conditions.
+This project aims to segment sea turtles from photographs using computer vision and deep learning techniques. We employed two advanced segmentation models: U-Net and DeepLabv3+. The objective was to accurately identify the head, flippers, and carapace of sea turtles in the given dataset, which contains diverse images from different environmental conditions.
 
 # Dataset
 
@@ -15,11 +15,11 @@ The dataset can be downloaded from this link: https://www.kaggle.com/datasets/wi
 
 **Purpose:** It was selected for its effectiveness in handling small datasets while maintaining high spatial accuracy, particularly useful for segmenting detailed anatomical features like the flippers and carapace.
 
-**2. Mask R-CNN**
+**2. DeepLabv3+**
 
-**Description:** Mask R-CNN extends Faster R-CNN by adding a branch for predicting segmentation masks of each Region of Interest (RoI).
+**Description:** DeepLabv3+ is an encoder-decoder model that uses Atrous Spatial Pyramid Pooling (ASPP) to extract multi-scale context and refine segmentation maps for sharp boundaries.
 
-**Purpose:** It was chosen for its instance-level segmentation capabilities, which are highly effective in distinguishing overlapping sea turtles, even in cluttered environments.
+**Purpose:** It was chosen for its ability to handle complex and cluttered environments with high accuracy, making it ideal for segmenting multiple overlapping turtles.
 
 # Installation
 
