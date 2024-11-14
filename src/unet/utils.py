@@ -4,38 +4,59 @@ import cv2
 import numpy as np
 from data import load_data 
 from torchvision.utils import save_image
-import matplotlib.pyplot as plt
+from PIL import Image
+import torch.nn as nn
 
-def save_checkpoint(model, optimizer, filename="checkpoint.pth.tar"):
+
+def save_checkpoint(model, optimizer, epoch=None, loss=None, filename="checkpoint.pth.tar"):
     """
-    Saves the model and optimizer checkpoint.
+    Save the model and optimizer states to a checkpoint file.
 
     Args:
-        model: The model to save.
-        optimizer: The optimizer to save.
-        filename: The file name where the checkpoint will be saved.
+        model (nn.Module): The model to save.
+        optimizer (torch.optim.Optimizer): The optimizer to save.
+        epoch (int, optional): The current epoch number (if resuming).
+        loss (float, optional): The current loss value (if resuming).
+        filename (str, optional): Path where to save the checkpoint.
     """
-    print("=> Saving checkpoint")
-    torch.save({
-        'state_dict': model.state_dict(),
-        'optimizer': optimizer.state_dict(),
-    }, filename)
+    checkpoint = {
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'epoch': epoch,
+        'loss': loss
+    }
+    torch.save(checkpoint, filename)
+    print(f"Checkpoint saved to {filename}")
 
 
-def load_checkpoint(model, optimizer, filename="checkpoint.pth.tar"):
+
+def load_checkpoint(checkpoint_path, model, optimizer=None, device="cuda"):
     """
-    Loads a checkpoint into the model and optimizer.
+    Loads model and optimizer state from a checkpoint.
 
     Args:
-        model: The model to load the checkpoint into.
-        optimizer: The optimizer to load the checkpoint into.
-        filename: The file name of the checkpoint to load.
-    """
-    print("=> Loading checkpoint")
-    checkpoint = torch.load(filename)
-    model.load_state_dict(checkpoint['state_dict'])
-    optimizer.load_state_dict(checkpoint['optimizer'])
+        checkpoint_path (str): Path to the checkpoint file.
+        model (nn.Module): The model to load weights into.
+        optimizer (torch.optim.Optimizer, optional): Optimizer to load state into.
+        device (str, optional): The device to load the model onto ('cuda' or 'cpu').
 
+    Returns:
+        model (nn.Module): Model with loaded weights.
+        optimizer (torch.optim.Optimizer, optional): Optimizer with loaded state.
+        epoch (int, optional): The epoch number to resume from.
+        loss (float, optional): Loss at the checkpoint (if needed).
+    """
+    checkpoint = torch.load(checkpoint_path, map_location=device)
+
+    model.load_state_dict(checkpoint['model_state_dict'])
+
+    if optimizer:
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+    epoch = checkpoint.get('epoch', 0)
+    loss = checkpoint.get('loss', None)
+
+    return model, optimizer, epoch, loss
 
 def get_loaders(image_height, image_width, batch_size, num_workers, pin_memory):
     """
@@ -52,7 +73,7 @@ def get_loaders(image_height, image_width, batch_size, num_workers, pin_memory):
         tuple: train_loader, val_loader, test_loader
     """
     # Assuming the function load_data is correctly importing and calling the TurtleDataset
-    path = "dataSet/turtles-data/data/images"  # Adjust path as needed
+    path = r"C:\Users\vedan\Desktop\COMP9517\COMP9517 group project\turtles-data\data\images"  # Adjust path as needed
     train_loader, val_loader, test_loader = load_data(path, batch_size, num_workers)
     return train_loader, val_loader, test_loader
 
@@ -60,59 +81,38 @@ def get_loaders(image_height, image_width, batch_size, num_workers, pin_memory):
 def check_accuracy(loader, model, device="cuda"):
     """
     Check the accuracy of the model on the validation/test set.
-    
+
     Args:
         loader: DataLoader for validation or test data.
         model: The model to evaluate.
         device: The device to use for evaluation, e.g., 'cuda' or 'cpu'.
     """
     model.eval()
-    correct_pixels = 0
-    total_pixels = 0
-
+    # correct = 0
+    # total = 0
+    val_loss = 0.0
+    print("HELLO")
     with torch.no_grad():
-        for batch_idx, (data, targets) in enumerate(loader):
+        for data, targets in loader:
             data = data.to(device)
             targets = targets.to(device)
 
             # Forward pass
             outputs = model(data)
+            loss_fn = nn.CrossEntropyLoss()
+            loss = loss_fn(outputs, targets.long())
 
-            # Apply sigmoid and threshold for binary predictions
-            predicted = (torch.sigmoid(outputs) > 0.5).float()
+            val_loss += loss.item() * data.size(0)
+           # For multi-class, we select the class with the highest score for each pixel
+            # predicted = torch.argmax(outputs, dim=1)  # This returns shape (batch_size, height, width)
+            # correct += (predicted == targets).sum()
+            # total += targets.numel()
 
-            # Count correctly predicted pixels
-            correct_pixels += (predicted == targets).sum().item()
-            total_pixels += targets.numel()
-
-            # Display the first image, its predicted mask, and target mask
-            if batch_idx == 0:
-                data = data.cpu().numpy()  # Convert tensor to numpy
-                targets = targets.cpu().numpy()  # Convert tensor to numpy
-                predicted = predicted.cpu().numpy()  # Convert tensor to numpy
-
-                # Plot the input image, predicted mask, and target mask
-                fig, axes = plt.subplots(1, 3, figsize=(12, 4))
-                if data[0].shape[0] > 3:
-                    data_rgb = data[0][:3].transpose(1, 2, 0)
-                else:
-                    data_rbg = data[0].transpose(1, 2, 0)
-                axes[0].imshow(data_rgb)  # Input image (Numpy array, channel last)
-                axes[0].set_title("Input Image")
-                
-                axes[1].imshow(predicted[0].squeeze(), cmap="gray")  # Predicted mask
-                axes[1].set_title("Predicted Mask")
-                
-                axes[2].imshow(targets[0].squeeze(), cmap="gray")  # Target mask
-                axes[2].set_title("Target Mask")
-                
-                plt.show()
-                break  # Exit after the first batch
-
-    # Calculate accuracy as percentage of correctly predicted pixels
-    accuracy = 100 * correct_pixels / total_pixels
-    print(f"Accuracy: {accuracy:.2f}%")
+    # accuracy = 100 * correct / total
+    avg_val_loss = val_loss/len(loader)
+    print(f"Accuracy: {avg_val_loss:.2f}%")
     model.train()
+
 
 def save_predictions_as_imgs(loader, model, epoch, folder="saved_images", device="cuda"):
     """
@@ -145,3 +145,85 @@ def save_predictions_as_imgs(loader, model, epoch, folder="saved_images", device
                 save_image(targets[i], os.path.join(folder, f"epoch{epoch}_batch{batch_id}_image{i}_target.png"))
 
     model.train()
+
+def save_masks(predicted_masks, ground_truth_masks, output_dir='output_masks', num_images=5):
+    """
+    Save the predicted and ground truth masks for the first 'num_images' images.
+
+    Args:
+        predicted_masks (list or array): List or array of predicted masks.
+        ground_truth_masks (list or array): List or array of ground truth masks.
+        output_dir (str): Directory where the masks will be saved. Default is 'output_masks'.
+        num_images (int): Number of images for which the masks will be saved. Default is 5.
+    """
+    # Create the output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Ensure we don't try to access more than the available number of images
+    for i in range(min(num_images, len(predicted_masks))):
+        # Get the predicted and ground truth mask
+        predicted_mask = predicted_masks[i]
+        ground_truth_mask = ground_truth_masks[i]
+
+        # Squeeze to remove any extra dimensions (e.g., batch dimension)
+        predicted_mask = predicted_mask.squeeze()  # Remove single-dimension entries
+        ground_truth_mask = ground_truth_mask.squeeze()
+
+        # Check if it's a multi-class mask (3D tensor, e.g., (num_classes, height, width))
+        if predicted_mask.ndimension() == 3:  # Multi-class segmentation
+            predicted_mask = predicted_mask.argmax(0)  # Choose the class with the highest probability
+            ground_truth_mask = ground_truth_mask.argmax(0)  # Similarly for ground truth
+        else:  # Binary segmentation (2D tensor, e.g., (height, width))
+            predicted_mask = (predicted_mask > 0.5).cpu().numpy().astype(np.uint8)
+            ground_truth_mask = (ground_truth_mask > 0.5).cpu().numpy().astype(np.uint8)
+
+        # Ensure the mask is on CPU and convert to NumPy array
+        predicted_mask = predicted_mask.cpu().numpy().astype(np.uint8)
+        ground_truth_mask = ground_truth_mask.cpu().numpy().astype(np.uint8)
+
+        # Convert numpy arrays to PIL images
+        predicted_mask_image = Image.fromarray(predicted_mask)
+        ground_truth_mask_image = Image.fromarray(ground_truth_mask)
+
+        # Save the masks to the output directory
+        predicted_mask_image.save(os.path.join(output_dir, f'predicted_mask_{i+1}.png'))
+        ground_truth_mask_image.save(os.path.join(output_dir, f'ground_truth_mask_{i+1}.png'))
+
+    print(f"First {num_images} masks saved successfully in '{output_dir}'.")
+    
+# def save_masks(predicted_masks, ground_truth_masks, output_dir='output_masks', num_images=5):
+#     """
+#     Save the predicted and ground truth masks for the first 'num_images' images.
+
+#     Args:
+#         predicted_masks (list or array): List or array of predicted masks.
+#         ground_truth_masks (list or array): List or array of ground truth masks.
+#         output_dir (str): Directory where the masks will be saved. Default is 'output_masks'.
+#         num_images (int): Number of images for which the masks will be saved. Default is 5.
+#     """
+#     # Create the output directory if it doesn't exist
+#     os.makedirs(output_dir, exist_ok=True)
+
+#     # Ensure we don't try to access more than the available number of images
+#     for i in range(min(num_images, len(predicted_masks))):
+#         # Get the predicted and ground truth mask
+#         predicted_mask = predicted_masks[i]
+#         ground_truth_mask = ground_truth_masks[i]
+
+#         # Squeeze to remove any extra dimensions
+#         predicted_mask = predicted_mask.squeeze()  # Remove single-dimension entries
+#         ground_truth_mask = ground_truth_mask.squeeze()
+
+#         # Ensure the mask is in the range [0, 1] for binary classification
+#         predicted_mask = (predicted_mask > 0.5).cpu().numpy().astype(np.uint8)
+#         ground_truth_mask = ground_truth_mask.cpu().numpy().astype(np.uint8)
+
+#         # Convert numpy arrays to PIL images
+#         predicted_mask_image = Image.fromarray(predicted_mask)
+#         ground_truth_mask_image = Image.fromarray(ground_truth_mask)
+
+#         # Save the masks to the output directory
+#         predicted_mask_image.save(os.path.join(output_dir, f'predicted_mask_{i+1}.png'))
+#         ground_truth_mask_image.save(os.path.join(output_dir, f'ground_truth_mask_{i+1}.png'))
+
+#     print(f"First {num_images} masks saved successfully in '{output_dir}'.")
