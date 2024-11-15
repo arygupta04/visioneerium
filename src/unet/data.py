@@ -15,26 +15,15 @@ class TurtleDataset(Dataset):
 
     def __init__(self, split_type: str, path: str) -> None:
         self.path = path
-        self.coco = COCO(self.path + "/annotations.json")
+        self.coco = COCO(r"C:\Users\vedan\Desktop\COMP9517\COMP9517 group project\turtles-data\data\annotations.json")
         self.names = os.listdir(path)
         self.split_type = split_type
 
-        metadata = pd.read_csv(self.path + "/metadata_splits.csv")
+        metadata = pd.read_csv(r"C:\Users\vedan\Desktop\COMP9517\COMP9517 group project\turtles-data\data\metadata_splits.csv")
         self.img_ids = metadata[metadata["split_open"] == split_type]["id"].tolist()
         self.max_width, self.max_height = self.find_max_dimensions()
 
-        print(rf"{self.max_height} x {self.max_width}")
-        self.labels = self.load_labels()
-
-    def load_labels(self):
-        labels = {}
-        for img_id in self.img_ids:
-            ann_ids = self.coco.getAnnIds(imgIds=img_id)
-            anns = self.coco.loadAnns(ann_ids)
-            img_labels = [ann["category_id"] for ann in anns]
-            labels[img_id] = img_labels
-        return labels
-
+    
     def generate_mask(self, img_id: int, img: np.ndarray) -> np.ndarray:
         img_info = self.coco.loadImgs(img_id)[0]
         img_width = img_info["width"]
@@ -81,11 +70,6 @@ class TurtleDataset(Dataset):
             mask, mask_head
         )  # Ensure head overlays both body and flippers
 
-        # print("printing")
-        # plt.imshow(mask)
-        # plt.title(f'Category ID: {cat_id}')
-        # plt.axis('off')
-        # plt.show()
         return mask
 
     def display_img_and_mask(self, img_id):
@@ -122,8 +106,6 @@ class TurtleDataset(Dataset):
         image_path = rf"C:\Users\vedan\Desktop\COMP9517\COMP9517 group project\turtles-data\data\{file_name}"
         image = cv2.imread(image_path)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
-        labels = torch.tensor(self.labels[img_id], dtype=torch.int64)
 
         # Generate the combined mask
         mask = self.generate_mask(img_id, image)
@@ -169,17 +151,10 @@ def load_data(
     """
 
     # create datasets
-    train_dataset = TurtleDataset("train", path)
-    val_dataset = TurtleDataset("valid", path)
-    test_dataset = TurtleDataset("test", path)
-
-    # im = coco.loadImgs(1)[0]
-    # file_name = im['file_name']
-    # img_path = rf"C:\Users\vedan\Desktop\COMP9517\COMP9517 group project\turtles-data\data\{file_name}"
-    # I = io.imread(img_path)
-
-    # train_dataset.generate_mask(1, I)
-
+    train_dataset = TurtleDataset('train', path)
+    val_dataset = TurtleDataset('valid', path)
+    test_dataset = TurtleDataset('test', path)
+    
     # define dataloaders
     train_dataloader = DataLoader(
         train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers
