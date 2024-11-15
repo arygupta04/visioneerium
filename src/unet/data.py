@@ -7,10 +7,8 @@ from pycocotools.coco import COCO
 import pycocotools.mask as cocoMask 
 from torchvision import transforms
 from PIL import Image
-from matplotlib import pyplot as plt
 from torch.utils.data import Dataset, DataLoader
 import pandas as pd
-from skimage import io
 
 coco = COCO(r"C:\Users\vedan\Desktop\COMP9517\COMP9517 group project\turtles-data\data\annotations.json")
 
@@ -24,18 +22,6 @@ class TurtleDataset(Dataset):
         self.img_ids = metadata[metadata['split_open'] == split_type]['id'].tolist()
         self.max_width, self.max_height = self.find_max_dimensions()
 
-        print(rf"{self.max_height} x {self.max_width}")
-        self.labels = self.load_labels()
-
-    def load_labels(self):
-        labels = {}
-        for img_id in self.img_ids:
-            ann_ids = coco.getAnnIds(imgIds=img_id)
-            anns = coco.loadAnns(ann_ids)
-            img_labels = [ann['category_id'] for ann in anns]
-            labels[img_id] = img_labels
-        return labels
-    
     
     def generate_mask(self, img_id: int, img: np.ndarray) -> np.ndarray:
         img_info = coco.loadImgs(img_id)[0]
@@ -77,19 +63,7 @@ class TurtleDataset(Dataset):
         mask = np.maximum(mask_carapace, mask_flippers)  # Ensure flippers overlay body
         mask = np.maximum(mask, mask_head)  # Ensure head overlays both body and flippers
 
-        # print("printing")
-        # plt.imshow(mask)
-        # plt.title(f'Category ID: {cat_id}')
-        # plt.axis('off')
-        # plt.show()
         return mask
-
-
-
-
-
-
-
 
 
     def display_img_and_mask(self, img_id):
@@ -140,7 +114,7 @@ class TurtleDataset(Dataset):
         padded_mask = cv2.copyMakeBorder(mask, 0, pad_height, 0, pad_width, cv2.BORDER_CONSTANT, value=0)
         
         # Resize image and mask
-        target_size = (32, 32)
+        target_size = (256, 256)
         image = cv2.resize(image, target_size)
         padded_mask = cv2.resize(padded_mask, target_size)
 
@@ -173,17 +147,10 @@ def load_data(
     train_dataset = TurtleDataset('train', path)
     val_dataset = TurtleDataset('valid', path)
     test_dataset = TurtleDataset('test', path)
-
-    # im = coco.loadImgs(1)[0]
-    # file_name = im['file_name']
-    # img_path = rf"C:\Users\vedan\Desktop\COMP9517\COMP9517 group project\turtles-data\data\{file_name}"
-    # I = io.imread(img_path)
-
-    # train_dataset.generate_mask(1, I)
     
-     # define dataloaders
+    # define dataloaders
     train_dataloader = DataLoader(
-train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers
+        train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers
     )
     val_dataloader = DataLoader(
         val_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers

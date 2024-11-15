@@ -1,12 +1,5 @@
 import torch
-import os
-import cv2
-import numpy as np
-from data import load_data 
-from torchvision.utils import save_image
-from PIL import Image
 import torch.nn as nn
-
 
 def save_checkpoint(model, optimizer, epoch=None, loss=None, filename="checkpoint.pth.tar"):
     """
@@ -27,7 +20,6 @@ def save_checkpoint(model, optimizer, epoch=None, loss=None, filename="checkpoin
     }
     torch.save(checkpoint, filename)
     print(f"Checkpoint saved to {filename}")
-
 
 
 def load_checkpoint(checkpoint_path, model, optimizer=None, device="cuda"):
@@ -58,27 +50,7 @@ def load_checkpoint(checkpoint_path, model, optimizer=None, device="cuda"):
 
     return model, optimizer, epoch, loss
 
-def get_loaders(image_height, image_width, batch_size, num_workers, pin_memory):
-    """
-    Returns data loaders for training, validation, and testing.
-
-    Args:
-        image_height (int): Image height for resizing.
-        image_width (int): Image width for resizing.
-        batch_size (int): Batch size for data loading.
-        num_workers (int): Number of workers for data loading.
-        pin_memory (bool): Whether to pin memory for faster data transfer.
-
-    Returns:
-        tuple: train_loader, val_loader, test_loader
-    """
-    # Assuming the function load_data is correctly importing and calling the TurtleDataset
-    path = r"C:\Users\vedan\Desktop\COMP9517\COMP9517 group project\turtles-data\data\images"  # Adjust path as needed
-    train_loader, val_loader, test_loader = load_data(path, batch_size, num_workers)
-    return train_loader, val_loader, test_loader
-
-
-def check_accuracy(loader, model, device="cuda"):
+def calculate_val_loss(loader, model, device="cuda"):
     """
     Check the accuracy of the model on the validation/test set.
 
@@ -88,10 +60,8 @@ def check_accuracy(loader, model, device="cuda"):
         device: The device to use for evaluation, e.g., 'cuda' or 'cpu'.
     """
     model.eval()
-    # correct = 0
-    # total = 0
     val_loss = 0.0
-    print("HELLO")
+   
     with torch.no_grad():
         for data, targets in loader:
             data = data.to(device)
@@ -103,127 +73,19 @@ def check_accuracy(loader, model, device="cuda"):
             loss = loss_fn(outputs, targets.long())
 
             val_loss += loss.item() * data.size(0)
-           # For multi-class, we select the class with the highest score for each pixel
-            # predicted = torch.argmax(outputs, dim=1)  # This returns shape (batch_size, height, width)
-            # correct += (predicted == targets).sum()
-            # total += targets.numel()
-
-    # accuracy = 100 * correct / total
+        
     avg_val_loss = val_loss/len(loader)
-    print(f"Accuracy: {avg_val_loss:.2f}%")
+    print(f"Loss: {avg_val_loss:.2f}")
     model.train()
 
 
-def save_predictions_as_imgs(loader, model, epoch, folder="saved_images", device="cuda"):
+def save_model(model, filename="unet_model_trained.pth"):
     """
-    Save model predictions as images to a specified folder.
+    Save only the model's state dict after training.
 
     Args:
-        loader: DataLoader for validation data.
-        model: The model to make predictions.
-        epoch: Current epoch number.
-        folder: Folder where the images will be saved.
-        device: The device to use for predictions, e.g., 'cuda' or 'cpu'.
+        model (nn.Module): The trained model to save.
+        filename (str, optional): Path where to save the model state dictionary.
     """
-    model.eval()
-    os.makedirs(folder, exist_ok=True)
-
-    with torch.no_grad():
-        for batch_id, (data, targets) in enumerate(loader):
-            data = data.to(device)
-            targets = targets.to(device)
-
-            # Forward pass
-            predictions = model(data)
-
-            # Convert predictions to binary mask
-            predicted_mask = torch.sigmoid(predictions) > 0.5
-
-            # Save images and predictions
-            for i in range(data.size(0)):
-                save_image(predicted_mask[i], os.path.join(folder, f"epoch{epoch}_batch{batch_id}_image{i}_pred.png"))
-                save_image(targets[i], os.path.join(folder, f"epoch{epoch}_batch{batch_id}_image{i}_target.png"))
-
-    model.train()
-
-def save_masks(predicted_masks, ground_truth_masks, output_dir='output_masks', num_images=5):
-    """
-    Save the predicted and ground truth masks for the first 'num_images' images.
-
-    Args:
-        predicted_masks (list or array): List or array of predicted masks.
-        ground_truth_masks (list or array): List or array of ground truth masks.
-        output_dir (str): Directory where the masks will be saved. Default is 'output_masks'.
-        num_images (int): Number of images for which the masks will be saved. Default is 5.
-    """
-    # Create the output directory if it doesn't exist
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Ensure we don't try to access more than the available number of images
-    for i in range(min(num_images, len(predicted_masks))):
-        # Get the predicted and ground truth mask
-        predicted_mask = predicted_masks[i]
-        ground_truth_mask = ground_truth_masks[i]
-
-        # Squeeze to remove any extra dimensions (e.g., batch dimension)
-        predicted_mask = predicted_mask.squeeze()  # Remove single-dimension entries
-        ground_truth_mask = ground_truth_mask.squeeze()
-
-        # Check if it's a multi-class mask (3D tensor, e.g., (num_classes, height, width))
-        if predicted_mask.ndimension() == 3:  # Multi-class segmentation
-            predicted_mask = predicted_mask.argmax(0)  # Choose the class with the highest probability
-            ground_truth_mask = ground_truth_mask.argmax(0)  # Similarly for ground truth
-        else:  # Binary segmentation (2D tensor, e.g., (height, width))
-            predicted_mask = (predicted_mask > 0.5).cpu().numpy().astype(np.uint8)
-            ground_truth_mask = (ground_truth_mask > 0.5).cpu().numpy().astype(np.uint8)
-
-        # Ensure the mask is on CPU and convert to NumPy array
-        predicted_mask = predicted_mask.cpu().numpy().astype(np.uint8)
-        ground_truth_mask = ground_truth_mask.cpu().numpy().astype(np.uint8)
-
-        # Convert numpy arrays to PIL images
-        predicted_mask_image = Image.fromarray(predicted_mask)
-        ground_truth_mask_image = Image.fromarray(ground_truth_mask)
-
-        # Save the masks to the output directory
-        predicted_mask_image.save(os.path.join(output_dir, f'predicted_mask_{i+1}.png'))
-        ground_truth_mask_image.save(os.path.join(output_dir, f'ground_truth_mask_{i+1}.png'))
-
-    print(f"First {num_images} masks saved successfully in '{output_dir}'.")
-    
-# def save_masks(predicted_masks, ground_truth_masks, output_dir='output_masks', num_images=5):
-#     """
-#     Save the predicted and ground truth masks for the first 'num_images' images.
-
-#     Args:
-#         predicted_masks (list or array): List or array of predicted masks.
-#         ground_truth_masks (list or array): List or array of ground truth masks.
-#         output_dir (str): Directory where the masks will be saved. Default is 'output_masks'.
-#         num_images (int): Number of images for which the masks will be saved. Default is 5.
-#     """
-#     # Create the output directory if it doesn't exist
-#     os.makedirs(output_dir, exist_ok=True)
-
-#     # Ensure we don't try to access more than the available number of images
-#     for i in range(min(num_images, len(predicted_masks))):
-#         # Get the predicted and ground truth mask
-#         predicted_mask = predicted_masks[i]
-#         ground_truth_mask = ground_truth_masks[i]
-
-#         # Squeeze to remove any extra dimensions
-#         predicted_mask = predicted_mask.squeeze()  # Remove single-dimension entries
-#         ground_truth_mask = ground_truth_mask.squeeze()
-
-#         # Ensure the mask is in the range [0, 1] for binary classification
-#         predicted_mask = (predicted_mask > 0.5).cpu().numpy().astype(np.uint8)
-#         ground_truth_mask = ground_truth_mask.cpu().numpy().astype(np.uint8)
-
-#         # Convert numpy arrays to PIL images
-#         predicted_mask_image = Image.fromarray(predicted_mask)
-#         ground_truth_mask_image = Image.fromarray(ground_truth_mask)
-
-#         # Save the masks to the output directory
-#         predicted_mask_image.save(os.path.join(output_dir, f'predicted_mask_{i+1}.png'))
-#         ground_truth_mask_image.save(os.path.join(output_dir, f'ground_truth_mask_{i+1}.png'))
-
-#     print(f"First {num_images} masks saved successfully in '{output_dir}'.")
+    torch.save(model.state_dict(), filename)
+    print(f"Model saved to {filename}")
