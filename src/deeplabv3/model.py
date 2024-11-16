@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import timm
 
-
 class DeepLabV3Plus(nn.Module):
     def __init__(
         self,
@@ -121,6 +120,7 @@ class ASPP(nn.Module):
         )
 
         self.conv6 = nn.Conv2d(out_channels * 5, out_channels, kernel_size=1)
+
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         size = x.shape[-2:]
