@@ -21,7 +21,9 @@ The dataset can be downloaded from this link: https://www.kaggle.com/datasets/wi
 
 **Purpose:** It was chosen for its ability to handle complex and cluttered environments with high accuracy, making it ideal for segmenting multiple overlapping turtles.
 
-# Installation
+# Install Dependencies
+
+Use the following commands to install the required libraries and packages:
 
 ```bash
 # Clone the repository
@@ -51,7 +53,15 @@ pip install pandas
 
 # simplecrf library for CRF (Conditional Random Fields) post-processing
 pip install simplecrf
+
+# Timm for pre-trained models
+pip install timm
 ```
 
 # Running the project
+In the terminal, write:
+
+`python train.py`
+
+**Note:** Make sure to adjust the file paths in the scripts to match your directory structure and data locations before running them.
 
