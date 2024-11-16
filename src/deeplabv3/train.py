@@ -2,7 +2,9 @@ import torch
 from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
-import segmentation_models_pytorch as smp
+import numpy as np
+import pydensecrf.densecrf as dcrf
+from pydensecrf.utils import unary_from_softmax, create_pairwise_bilateral
 
 from src.deeplabv3.model import DeepLabV3Plus
 from src.deeplabv3.data import load_data
@@ -21,6 +23,33 @@ NUM_EPOCHS = 1
 NUM_WORKERS = 6
 PIN_MEMORY = False
 LOAD_MODEL = False
+
+
+def apply_crf(original_image, mask):
+    """
+    Applies CRF post-processing to refine the segmentation mask.
+    :param original_image: The original image (H, W, 3)
+    :param mask: The predicted mask (classes, H, W)
+    :return: Refined mask
+    """
+    h, w = mask.shape[1], mask.shape[2]
+    d = dcrf.DenseCRF2D(w, h, mask.shape[0])  # width, height, num_classes
+
+    # Get unary potentials (negative log probability)
+    unary = unary_from_softmax(mask)
+    d.setUnaryEnergy(unary)
+
+    # Create pairwise energy
+    pairwise_energy = create_pairwise_bilateral(
+        sdims=(10, 10), schan=(13, 13, 13), img=original_image, chdim=2
+    )
+    d.addPairwiseEnergy(pairwise_energy, compat=10)
+
+    # Run inference
+    Q = d.inference(5)
+    refined_mask = np.argmax(Q, axis=0).reshape((h, w))
+
+    return refined_mask
 
 
 # Function to train the model
@@ -66,7 +95,12 @@ def test_fn(loader, model, device="cuda"):
     flippers_ious = []
     carapace_ious = []
 
+    crf_head_ious = []
+    crf_flippers_ious = []
+    crf_carapace_ious = []
+
     predicted_masks_list = []
+    crf_masks_list = []
     ground_truth_masks_list = []
 
     with torch.no_grad():
@@ -91,9 +125,26 @@ def test_fn(loader, model, device="cuda"):
             # plt.axis('off')
             # plt.show()
 
+            # Convert predictions to probabilities
+            probabilities = torch.sigmoid(predictions).cpu().detach().numpy()
+
+            # Apply CRF to each prediction
+            refined_masks = []
+            for i in range(len(data)):
+                original_image = (
+                    data[i].cpu().permute(1, 2, 0).numpy() * 255
+                )  # Convert back to image format
+                refined_mask = apply_crf(
+                    original_image.astype(np.uint8), probabilities[i]
+                )
+                refined_masks.append(refined_mask)
+
+            refined_masks = torch.tensor(refined_masks).to(device)
+
             # break
             # Append predicted and ground truth masks for saving
             predicted_masks_list.append(predictions)
+            crf_masks_list.append(refined_masks)
             ground_truth_masks_list.append(targets)
 
             # Calculate IoU for each category
@@ -106,14 +157,27 @@ def test_fn(loader, model, device="cuda"):
             carapace_ious.append(
                 torch.tensor(calculate_iou(predictions, targets, class_value=3))
             )
+            crf_head_ious.append(
+                torch.tensor(calculate_iou(refined_masks, targets, class_value=1))
+            )
+            crf_flippers_ious.append(
+                torch.tensor(calculate_iou(refined_masks, targets, class_value=2))
+            )
+            crf_carapace_ious.append(
+                torch.tensor(calculate_iou(refined_masks, targets, class_value=3))
+            )
 
     # After testing is complete, save masks
     save_masks(predicted_masks_list, ground_truth_masks_list, output_dir="output_masks")
+    save_masks(crf_masks_list, ground_truth_masks_list, output_dir="output_masks_crf")
 
     # Filter out NaN values and compute mean IoU for each category over the test set
     head_ious = [iou for iou in head_ious if not torch.isnan(iou)]
     flippers_ious = [iou for iou in flippers_ious if not torch.isnan(iou)]
     carapace_ious = [iou for iou in carapace_ious if not torch.isnan(iou)]
+    crf_head_ious = [iou for iou in crf_head_ious if not torch.isnan(iou)]
+    crf_flippers_ious = [iou for iou in crf_flippers_ious if not torch.isnan(iou)]
+    crf_carapace_ious = [iou for iou in crf_carapace_ious if not torch.isnan(iou)]
 
     mean_head_iou = torch.mean(
         torch.stack(head_ious)
@@ -124,10 +188,22 @@ def test_fn(loader, model, device="cuda"):
     mean_carapace_iou = torch.mean(
         torch.stack(carapace_ious)
     )  # Use torch.stack to concatenate the tensors
+    mean_crf_head_iou = torch.mean(
+        torch.stack(crf_head_ious)
+    )  # Use torch.stack to concatenate the tensors
+    mean_crf_flippers_iou = torch.mean(
+        torch.stack(crf_flippers_ious)
+    )  # Use torch.stack to concatenate the tensors
+    mean_crf_carapace_iou = torch.mean(
+        torch.stack(crf_carapace_ious)
+    )  # Use torch.stack to concatenate the tensors
 
     print(f"Head mIoU: {mean_head_iou:.4f}")
     print(f"Flippers mIoU: {mean_flippers_iou:.4f}")
     print(f"Carapace mIoU: {mean_carapace_iou:.4f}")
+    print(f"CRF Head mIoU: {mean_crf_head_iou:.4f}")
+    print(f"CRF Flippers mIoU: {mean_crf_flippers_iou:.4f}")
+    print(f"CRF Carapace mIoU: {mean_crf_carapace_iou:.4f}")
     model.train()
 
 
