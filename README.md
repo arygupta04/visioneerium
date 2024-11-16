@@ -61,7 +61,9 @@ pip install timm
 # Running the project
 In the terminal, write:
 
-`python train.py`
+```bash
+python train.py
+```
 
 **Note:** Make sure to adjust the file paths in the scripts to match your directory structure and data locations before running them.
 
