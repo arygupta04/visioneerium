@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
-def save_checkpoint(model, optimizer, epoch=None, loss=None, filename="checkpoint.pth.tar"):
+def save_checkpoint(model, optimizer, epoch, loss=None, filename="checkpoint.pth.tar"):
     """
     Save the model and optimizer states to a checkpoint file.
 
@@ -47,7 +48,6 @@ def load_checkpoint(checkpoint_path, model, optimizer=None, device="cuda"):
 
     epoch = checkpoint.get("epoch", 0)
     loss = checkpoint.get("loss", None)
-
     return model, optimizer, epoch, loss
 
 def calculate_val_loss(loader, model, device="cuda"):
@@ -89,3 +89,35 @@ def save_model(model, filename="unet_model_trained.pth"):
     """
     torch.save(model.state_dict(), filename)
     print(f"Model saved to {filename}")
+
+def dice_loss(pred, target, smooth=1e-6):
+    """
+    Compute the Dice Loss between the predicted and target masks.
+    Dice loss is 1 minus the Dice coefficient.
+    """
+    # Ensure target is of LongTensor type before applying one_hot
+    target = target.long()
+    pred = torch.softmax(pred, dim=1)
+    # Convert target to one-hot encoding
+    target_one_hot = torch.nn.functional.one_hot(target, num_classes=pred.size(1)).permute(0, 3, 1, 2).float()
+
+    intersection = (pred * target_one_hot).sum(dim=(1, 2, 3))  # Sum over the spatial dimensions
+    union = pred.sum(dim=(1, 2, 3)) + target_one_hot.sum(dim=(1, 2, 3))  # Sum over the spatial dimensions
+    
+    dice = (2. * intersection + smooth) / (union + smooth)  # Adding smoothing to avoid division by zero
+    return 1 - dice.mean()  # Dice loss is 1 - Dice coefficient
+
+def combined_loss(pred, target, weight_ce=1.0, weight_dice=1.0):
+    """
+    Compute the combined loss: weighted sum of Cross-Entropy Loss and Dice Loss.
+    """
+    # Cross-Entropy Loss
+    ce_loss = F.cross_entropy(pred, target)  # [batch_size, height, width, num_classes] -> (pred), (target)
+    
+    # Dice Loss (target should be in the same format as the prediction)
+    pred_softmax = F.softmax(pred, dim=1)  # Convert logits to probabilities for dice
+    dice_loss_value = dice_loss(pred_softmax, target.float())  # target must be float for Dice
+    
+    # Combined loss (weighted sum of CE and Dice)
+    loss = weight_ce * ce_loss + weight_dice * dice_loss_value
+    return loss

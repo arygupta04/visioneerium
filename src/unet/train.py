@@ -4,9 +4,10 @@ import torch.nn as nn
 import torch.optim as optim 
 import segmentation_models_pytorch as smp
 from matplotlib import pyplot as plt
-from custom_unet import UNetWithResNet50Encoder
+from original_unet import UNet
 from data import load_data
 from utils import(
+    combined_loss,
     load_checkpoint,
     save_checkpoint,
     calculate_val_loss,
@@ -14,13 +15,13 @@ from utils import(
 )
 
 # Hyperparameters
-LEARNING_RATE = 0.01
+LEARNING_RATE = 0.001
 DEVICE = "cpu"
 BATCH_SIZE = 6
 NUM_EPOCHS = 1
 NUM_WORKERS = 6
 PIN_MEMORY = False
-LOAD_MODEL = False
+LOAD_MODEL = True
 
 train_losses = []
 # Function to train the model
@@ -87,20 +88,6 @@ def test_fn(loader, model, device="cuda"):
             head_ious.append(torch.tensor(calculate_iou(predictions, targets, class_value=3)))
             plt.figure(figsize=(10, 5))
 
-            # # Prediction
-            # plt.subplot(1, 2, 1)
-            # plt.imshow(predictions_np[0])  # Adjust colormap if necessary
-            # plt.title('Prediction : our model')
-            # plt.axis('off')
-
-            # # Ground truth
-            # plt.subplot(1, 2, 2)
-            # plt.imshow(targets[0])  # Adjust colormap if necessary
-            # plt.title('Ground Truth : expected image')
-            # plt.axis('off')
-
-            # plt.show()
-
             # break
         # Filter out NaN values and compute mean IoU for each category over the test set
         head_ious = [iou for iou in head_ious if not torch.isnan(iou)]
@@ -130,21 +117,25 @@ def plot_loss_graph():
 ###############################################
 def main():
     # model = smp.Unet(
-    #     encoder_name="resnet50",  # Smaller model for lower memory usage
+    #     encoder_name="mobilenet_v2",  # Smaller model for lower memory usage
     #     encoder_weights="imagenet",
     #     in_channels=3,
     #     classes=4,
     # ).to(DEVICE)
 
-    model = UNetWithResNet50Encoder(
-        num_classes=4,        # Number of segmentation classes
-        #backbone='resnet50',  # You can choose 'resnet34' or 'resnet50' as needed
-        #pretrained=True       # Use pretrained weights on the encoder
+    model = smp.Unet(
+        encoder_name="mobilenet_v2",  # Smaller model for lower memory usage
+        encoder_weights="imagenet",
+        in_channels=3,
+        classes=4,
     ).to(DEVICE)
+
+    #model = UNet(num_classes=4, in_channels=3).to(DEVICE)
 
 
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
     loss_fn = nn.CrossEntropyLoss()  # Cross entropy loss
+    #loss_fn = lambda pred, target: combined_loss(pred, target, weight_ce=1.0, weight_dice=1.0)
     
     train_loader, val_loader, test_loader = load_data(r"C:\Users\vedan\Desktop\COMP9517\COMP9517 group project\turtles-data\data\images", 
         batch_size=BATCH_SIZE, 
@@ -153,13 +144,24 @@ def main():
     
     if LOAD_MODEL:
         print("continuing...")
-        checkpoint_path = "checkpoint_epoch_1.pth.tar"  # Path to your checkpoint
+        checkpoint_path = "checkpoint_epoch_4.pth.tar"  # Path to your checkpoint
         model, optimizer, start_epoch, _ = load_checkpoint(checkpoint_path, model, optimizer, device=DEVICE)
         
         if start_epoch is None:  # Ensure start_epoch is not None
             start_epoch = 0  # Default to epoch 0 if None
+        if start_epoch + 1 <= NUM_EPOCHS:
 
-        print(f"Resuming from epoch {start_epoch + 1}...")
+            print(f"Resuming from epoch {start_epoch + 1}...")
+
+            for epoch in range(start_epoch + 1, NUM_EPOCHS):
+                print(f"Epoch {epoch + 1}/{NUM_EPOCHS}")
+
+                train_fn(train_loader, model, optimizer, loss_fn)
+
+                save_checkpoint(model, optimizer, epoch, filename=f"checkpoint_epoch_{epoch + 1}.pth.tar")
+
+                # Check accuracy on validation set
+                calculate_val_loss(val_loader, model, device=DEVICE)
 
     else:
     
@@ -174,7 +176,7 @@ def main():
             # Check accuracy on validation set
             calculate_val_loss(val_loader, model, device=DEVICE)
         
-        plot_loss_graph(train_losses)
+        #plot_loss_graph()
         
     # Save the final trained model
     save_model(model, filename="trained_model.pth")
