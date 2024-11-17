@@ -5,9 +5,9 @@ import torch.nn as nn
 import torch.optim as optim
 import segmentation_models_pytorch as smp
 from matplotlib import pyplot as plt
-from original_unet import UNet
-from src.unet.data import load_data
-from src.unet.utils import (
+from src.unet.original_unet import UNet
+from src.data import load_data
+from src.utils import (
     load_checkpoint,
     save_checkpoint,
     calculate_val_loss,
@@ -21,7 +21,7 @@ BATCH_SIZE = 6
 NUM_EPOCHS = 1
 NUM_WORKERS = 6
 PIN_MEMORY = False
-LOAD_MODEL = True
+LOAD_MODEL = False
 CHECKPOINT_PATH = "checkpoint_epoch_4.pth.tar"
 
 
@@ -242,4 +242,4 @@ def train(path: str = "data/"):
 
 
 if __name__ == "__main__":
-    train(r"C:\Users\vedan\Desktop\COMP9517\COMP9517 group project\turtles-data\data")
+    train("data/turtles-data/data")
