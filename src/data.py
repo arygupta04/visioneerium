@@ -176,7 +176,7 @@ def load_data(
         val_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers
     )
     test_dataloader = DataLoader(
-        test_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers
+        test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers
     )
 
     return train_dataloader, val_dataloader, test_dataloader
