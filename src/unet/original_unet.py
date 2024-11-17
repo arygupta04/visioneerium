@@ -1,21 +1,34 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
-def double_conv_block(in_c, out_c):
+
+def double_conv_block(in_c: int, out_c: int) -> nn.Sequential:
+    """
+    Double convolution block with ReLU activation.
+
+    Args:
+        in_c: number of input channels.
+        out_c: number of output channels.
+
+    Returns:
+        Sequential: Sequential layer containing two convolution layers with ReLU activation.
+    """
     conv = nn.Sequential(
-        nn.Conv2d(in_c, out_c, kernel_size=3, padding=1),  # Added padding
+        nn.Conv2d(in_c, out_c, kernel_size=3, padding=1),
         nn.ReLU(inplace=True),
-        nn.Conv2d(out_c, out_c, kernel_size=3, padding=1),  # Added padding
-        nn.ReLU(inplace=True)
+        nn.Conv2d(out_c, out_c, kernel_size=3, padding=1),
+        nn.ReLU(inplace=True),
     )
     return conv
 
+
 class UNet(nn.Module):
-    def __init__(self, num_classes=4, in_channels=3):
+    def __init__(self, num_classes: int = 4, in_channels: int = 3):
         super(UNet, self).__init__()
+
         self.max_pool_2x2 = nn.MaxPool2d(kernel_size=2, stride=2)
-        self.down_conv_1 = double_conv_block(in_channels, 64)  # Dynamic in_channels
+
+        self.down_conv_1 = double_conv_block(in_channels, 64)
         self.down_conv_2 = double_conv_block(64, 128)
         self.down_conv_3 = double_conv_block(128, 256)
         self.down_conv_4 = double_conv_block(256, 512)
@@ -33,9 +46,9 @@ class UNet(nn.Module):
         self.up_trans_4 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)
         self.up_conv_4 = double_conv_block(128, 64)
 
-        self.out = nn.Conv2d(64, num_classes, kernel_size=1)  # Dynamic num_classes
+        self.out = nn.Conv2d(64, num_classes, kernel_size=1)
 
-    def forward(self, image):
+    def forward(self, image: torch.Tensor) -> torch.Tensor:
         # Encoder
         ec1 = self.down_conv_1(image)
         em1 = self.max_pool_2x2(ec1)
@@ -70,6 +83,7 @@ class UNet(nn.Module):
 
         d = self.out(d)
         return d
+
 
 # Debug testing code
 if __name__ == "__main__":
