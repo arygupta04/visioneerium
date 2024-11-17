@@ -4,9 +4,9 @@ import torch.nn as nn
 import torch.optim as optim 
 import segmentation_models_pytorch as smp
 from matplotlib import pyplot as plt
-from original_unet import UNet
-from data import load_data
-from utils import(
+from unet.original_unet import UNet
+from unet.data import load_data
+from unet.utils import(
     combined_loss,
     load_checkpoint,
     save_checkpoint,
