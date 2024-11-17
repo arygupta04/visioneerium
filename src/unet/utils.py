@@ -1,8 +1,18 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.data import DataLoader
 
-def save_checkpoint(model, optimizer, epoch, loss=None, filename="checkpoint.pth.tar"):
+from typing import Optional
+
+
+def save_checkpoint(
+    model: nn.Module,
+    optimizer: torch.optim.Optimizer,
+    epoch: Optional[int] = None,
+    loss: Optional[float] = None,
+    filename: str = "checkpoint.pth.tar",
+):
     """
     Save the model and optimizer states to a checkpoint file.
 
@@ -11,7 +21,7 @@ def save_checkpoint(model, optimizer, epoch, loss=None, filename="checkpoint.pth
         optimizer (torch.optim.Optimizer): The optimizer to save.
         epoch (int, optional): The current epoch number (if resuming).
         loss (float, optional): The current loss value (if resuming).
-        filename (str, optional): Path where to save the checkpoint.
+        filename (str): Path where to save the checkpoint.
     """
     checkpoint = {
         "model_state_dict": model.state_dict(),
@@ -23,7 +33,12 @@ def save_checkpoint(model, optimizer, epoch, loss=None, filename="checkpoint.pth
     print(f"Checkpoint saved to {filename}")
 
 
-def load_checkpoint(checkpoint_path, model, optimizer=None, device="cuda"):
+def load_checkpoint(
+    checkpoint_path: str,
+    model: nn.Module,
+    optimizer: Optional[torch.optim.Optimizer] = None,
+    device: str = "cuda",
+):
     """
     Loads model and optimizer state from a checkpoint.
 
@@ -31,7 +46,7 @@ def load_checkpoint(checkpoint_path, model, optimizer=None, device="cuda"):
         checkpoint_path (str): Path to the checkpoint file.
         model (nn.Module): The model to load weights into.
         optimizer (torch.optim.Optimizer, optional): Optimizer to load state into.
-        device (str, optional): The device to load the model onto ('cuda' or 'cpu').
+        device (str): The device to load the model onto ('cuda' or 'cpu').
 
     Returns:
         model (nn.Module): Model with loaded weights.
@@ -48,20 +63,22 @@ def load_checkpoint(checkpoint_path, model, optimizer=None, device="cuda"):
 
     epoch = checkpoint.get("epoch", 0)
     loss = checkpoint.get("loss", None)
+
     return model, optimizer, epoch, loss
 
-def calculate_val_loss(loader, model, device="cuda"):
+
+def calculate_val_loss(loader: DataLoader, model: nn.Module, device: str = "cuda"):
     """
     Check the accuracy of the model on the validation/test set.
 
     Args:
-        loader: DataLoader for validation or test data.
-        model: The model to evaluate.
-        device: The device to use for evaluation, e.g., 'cuda' or 'cpu'.
+        loader (DataLoader): DataLoader for the validation/test set.
+        model (nn.Module): The trained model to evaluate.
+        device (str): The device to load the model onto ('cuda' or 'cpu').
     """
     model.eval()
     val_loss = 0.0
-   
+
     with torch.no_grad():
         for data, targets in loader:
             data = data.to(device)
@@ -73,51 +90,81 @@ def calculate_val_loss(loader, model, device="cuda"):
             loss = loss_fn(outputs, targets.long())
 
             val_loss += loss.item() * data.size(0)
-        
-    avg_val_loss = val_loss/len(loader)
+
+    avg_val_loss = val_loss / len(loader)
     print(f"Loss: {avg_val_loss:.2f}")
-    model.train()
 
 
-def save_model(model, filename="unet_model_trained.pth"):
+def save_model(model: nn.Module, filename: str = "unet_model_trained.pth"):
     """
     Save only the model's state dict after training.
 
     Args:
         model (nn.Module): The trained model to save.
-        filename (str, optional): Path where to save the model state dictionary.
+        filename (str): Path where to save the model state dictionary.
     """
     torch.save(model.state_dict(), filename)
     print(f"Model saved to {filename}")
 
-def dice_loss(pred, target, smooth=1e-6):
+
+def dice_loss(
+    pred: torch.Tensor, target: torch.Tensor, smooth: float = 1e-6
+) -> torch.Tensor:
     """
     Compute the Dice Loss between the predicted and target masks.
     Dice loss is 1 minus the Dice coefficient.
+
+    Args:
+        pred (torch.Tensor): Predicted mask from the model.
+        target (torch.Tensor): Ground truth mask.
+        smooth (float): Smoothing factor to avoid division by zero.
+
+    Returns:
+        torch.Tensor: Dice loss value.
     """
-    # Ensure target is of LongTensor type before applying one_hot
     target = target.long()
-    pred = torch.softmax(pred, dim=1)
+    pred = torch.softmax(pred, dim=1)  # Convert logits to probabilities
+
     # Convert target to one-hot encoding
-    target_one_hot = torch.nn.functional.one_hot(target, num_classes=pred.size(1)).permute(0, 3, 1, 2).float()
+    target_one_hot = (
+        torch.nn.functional.one_hot(target, num_classes=pred.size(1))
+        .permute(0, 3, 1, 2)
+        .float()
+    )
 
-    intersection = (pred * target_one_hot).sum(dim=(1, 2, 3))  # Sum over the spatial dimensions
-    union = pred.sum(dim=(1, 2, 3)) + target_one_hot.sum(dim=(1, 2, 3))  # Sum over the spatial dimensions
-    
-    dice = (2. * intersection + smooth) / (union + smooth)  # Adding smoothing to avoid division by zero
-    return 1 - dice.mean()  # Dice loss is 1 - Dice coefficient
+    intersection = (pred * target_one_hot).sum(dim=(1, 2, 3))
+    union = pred.sum(dim=(1, 2, 3)) + target_one_hot.sum(dim=(1, 2, 3))
 
-def combined_loss(pred, target, weight_ce=1.0, weight_dice=1.0):
+    dice_coeff = (2.0 * intersection + smooth) / (
+        union + smooth
+    )  # Smoothing to avoid division by zero
+
+    return 1 - dice_coeff.mean()
+
+
+def combined_loss(
+    pred: torch.Tensor,
+    target: torch.Tensor,
+    weight_ce: float = 0.5,
+    weight_dice: float = 0.5,
+) -> torch.Tensor:
     """
     Compute the combined loss: weighted sum of Cross-Entropy Loss and Dice Loss.
+
+    Args:
+        pred (torch.Tensor): Predicted mask from the model.
+        target (torch.Tensor): Ground truth mask.
+        weight_ce (float): Weight for the Cross-Entropy Loss.
+        weight_dice (float): Weight for the Dice Loss.
+
+    Returns:
+        torch.Tensor: Combined loss value.
     """
-    # Cross-Entropy Loss
-    ce_loss = F.cross_entropy(pred, target)  # [batch_size, height, width, num_classes] -> (pred), (target)
-    
-    # Dice Loss (target should be in the same format as the prediction)
-    pred_softmax = F.softmax(pred, dim=1)  # Convert logits to probabilities for dice
-    dice_loss_value = dice_loss(pred_softmax, target.float())  # target must be float for Dice
-    
-    # Combined loss (weighted sum of CE and Dice)
+    # Compute losses
+    ce_loss = F.cross_entropy(pred, target)
+    dice_loss_value = dice_loss(pred, target.float())
+
+    # Weighted sum of the two losses
     loss = weight_ce * ce_loss + weight_dice * dice_loss_value
+
     return loss
