@@ -10,13 +10,11 @@ import numpy as np
 import pydensecrf.densecrf as dcrf
 from pydensecrf.utils import unary_from_softmax, create_pairwise_bilateral
 
-from data import load_data
-from utils import (
+from src.data import load_data
+from src.utils import (
     load_checkpoint,
     save_checkpoint,
-    get_loaders,
     check_accuracy,
-    save_predictions_as_imgs,
     save_masks,
 )
 

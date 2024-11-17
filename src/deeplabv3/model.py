@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import timm
 
+
 class DeepLabV3Plus(nn.Module):
     def __init__(
         self,
@@ -13,6 +14,7 @@ class DeepLabV3Plus(nn.Module):
     ):
         super(DeepLabV3Plus, self).__init__()
 
+        # Use timm to load a pretrained backbone
         self.backbone = timm.create_model(
             backbone,
             pretrained=True,
@@ -20,8 +22,14 @@ class DeepLabV3Plus(nn.Module):
             output_stride=16,
             out_indices=(1, 4),
         )
+
+        # Get the number of output channels of the backbone
         aspp_in_channels = self.backbone.feature_info.channels()[-1]
+
+        # Atrous Spatial Pyramid Pooling (ASPP) module
         self.aspp = ASPP(in_channels=aspp_in_channels, out_channels=aspp_out_channels)
+
+        # Decoder module
         self.decoder = Decoder(
             num_classes=num_classes,
             aspp_out_channels=aspp_out_channels,
@@ -30,15 +38,9 @@ class DeepLabV3Plus(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # Forward pass through the backbone
         low_level_features, x = self.backbone(x)
-
-        # Forward pass through the ASPP module
         x = self.aspp(x)
-
-        # Forward pass through the decoder
         x = self.decoder(x, low_level_features)
-
         return x
 
 
@@ -76,6 +78,7 @@ class Decoder(nn.Module):
     def forward(
         self, x: torch.Tensor, low_level_features: torch.Tensor
     ) -> torch.Tensor:
+        # Turn the low-level features into the same shape as the output of the ASPP
         low_level_features = self.conv1(low_level_features)
         low_level_features = self.bn1(low_level_features)
         low_level_features = self.relu(low_level_features)
@@ -103,11 +106,9 @@ class ASPP(nn.Module):
     def __init__(self, in_channels: int, out_channels: int):
         super(ASPP, self).__init__()
 
-        # Global average pooling
         self.global_avg_pool = nn.AdaptiveAvgPool2d((1, 1))
         self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1)
 
-        # ASPP
         self.conv2 = nn.Conv2d(in_channels, out_channels, kernel_size=1)
         self.conv3 = nn.Conv2d(
             in_channels, out_channels, kernel_size=3, padding=6, dilation=6
@@ -120,7 +121,6 @@ class ASPP(nn.Module):
         )
 
         self.conv6 = nn.Conv2d(out_channels * 5, out_channels, kernel_size=1)
-
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         size = x.shape[-2:]
