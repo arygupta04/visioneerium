@@ -19,7 +19,7 @@ The dataset can be downloaded from this link: https://www.kaggle.com/datasets/wi
 
 **Description:** DeepLabv3+ is an encoder-decoder model that uses Atrous Spatial Pyramid Pooling (ASPP) to extract multi-scale context and refine segmentation maps for sharp boundaries.
 
-**Purpose:** It was chosen for its ability to handle complex and cluttered environments with high accuracy, making it ideal for segmenting multiple overlapping turtles.
+**Purpose:** It was chosen for its ability to capture fine details and produce high-resolution segmentations, which are essential for identifying the head and flippers of sea turtles.
 
 # Install Dependencies
 
