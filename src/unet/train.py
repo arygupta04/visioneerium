@@ -13,17 +13,23 @@ from src.utils import (
     save_checkpoint,
     calculate_val_loss,
     save_model,
+    set_seed,
 )
 
 # Hyperparameters
-LEARNING_RATE = 0.001
-DEVICE = "cpu"
-BATCH_SIZE = 6
-NUM_EPOCHS = 1
-NUM_WORKERS = 6
-PIN_MEMORY = False
-LOAD_MODEL = False
-CHECKPOINT_PATH = "checkpoint_epoch_4.pth.tar"
+LEARNING_RATE: float = 0.001
+DEVICE: torch.device = (
+    torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+)
+BATCH_SIZE: int = 6
+NUM_EPOCHS: int = 1
+NUM_WORKERS: int = 6
+PIN_MEMORY: bool = False
+LOAD_MODEL: bool = False
+CHECKPOINT_PATH: str = "checkpoint_epoch_4.pth.tar"
+DATA_PATH: str = "data/turtles-data/data"
+
+set_seed(42)
 
 
 # Function to train the model
@@ -243,4 +249,4 @@ def train(path: str = "data/"):
 
 
 if __name__ == "__main__":
-    train("data/turtles-data/data")
+    train(DATA_PATH)
