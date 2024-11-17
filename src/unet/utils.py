@@ -1,73 +1,83 @@
 import torch
-import os
-import cv2
-import numpy as np
-from data import load_data 
-from torchvision.utils import save_image
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import DataLoader
 
-def save_checkpoint(model, optimizer, filename="checkpoint.pth.tar"):
+from typing import Optional
+
+
+def save_checkpoint(
+    model: nn.Module,
+    optimizer: torch.optim.Optimizer,
+    epoch: Optional[int] = None,
+    loss: Optional[float] = None,
+    filename: str = "checkpoint.pth.tar",
+):
     """
-    Saves the model and optimizer checkpoint.
+    Save the model and optimizer states to a checkpoint file.
 
     Args:
-        model: The model to save.
-        optimizer: The optimizer to save.
-        filename: The file name where the checkpoint will be saved.
+        model (nn.Module): The model to save.
+        optimizer (torch.optim.Optimizer): The optimizer to save.
+        epoch (int, optional): The current epoch number (if resuming).
+        loss (float, optional): The current loss value (if resuming).
+        filename (str): Path where to save the checkpoint.
     """
-    print("=> Saving checkpoint")
-    torch.save({
-        'state_dict': model.state_dict(),
-        'optimizer': optimizer.state_dict(),
-    }, filename)
+    checkpoint = {
+        "model_state_dict": model.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict(),
+        "epoch": epoch,
+        "loss": loss,
+    }
+    torch.save(checkpoint, filename)
+    print(f"Checkpoint saved to {filename}")
 
 
-def load_checkpoint(model, optimizer, filename="checkpoint.pth.tar"):
+def load_checkpoint(
+    checkpoint_path: str,
+    model: nn.Module,
+    optimizer: Optional[torch.optim.Optimizer] = None,
+    device: str = "cuda",
+):
     """
-    Loads a checkpoint into the model and optimizer.
+    Loads model and optimizer state from a checkpoint.
 
     Args:
-        model: The model to load the checkpoint into.
-        optimizer: The optimizer to load the checkpoint into.
-        filename: The file name of the checkpoint to load.
-    """
-    print("=> Loading checkpoint")
-    checkpoint = torch.load(filename)
-    model.load_state_dict(checkpoint['state_dict'])
-    optimizer.load_state_dict(checkpoint['optimizer'])
-
-
-def get_loaders(image_height, image_width, batch_size, num_workers, pin_memory):
-    """
-    Returns data loaders for training, validation, and testing.
-
-    Args:
-        image_height (int): Image height for resizing.
-        image_width (int): Image width for resizing.
-        batch_size (int): Batch size for data loading.
-        num_workers (int): Number of workers for data loading.
-        pin_memory (bool): Whether to pin memory for faster data transfer.
+        checkpoint_path (str): Path to the checkpoint file.
+        model (nn.Module): The model to load weights into.
+        optimizer (torch.optim.Optimizer, optional): Optimizer to load state into.
+        device (str): The device to load the model onto ('cuda' or 'cpu').
 
     Returns:
-        tuple: train_loader, val_loader, test_loader
+        model (nn.Module): Model with loaded weights.
+        optimizer (torch.optim.Optimizer, optional): Optimizer with loaded state.
+        epoch (int, optional): The epoch number to resume from.
+        loss (float, optional): Loss at the checkpoint (if needed).
     """
-    # Assuming the function load_data is correctly importing and calling the TurtleDataset
-    path = "dataSet/turtles-data/data/images"  # Adjust path as needed
-    train_loader, val_loader, test_loader = load_data(path, batch_size, num_workers)
-    return train_loader, val_loader, test_loader
+    checkpoint = torch.load(checkpoint_path, map_location=device)
+
+    model.load_state_dict(checkpoint["model_state_dict"])
+
+    if optimizer:
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+
+    epoch = checkpoint.get("epoch", 0)
+    loss = checkpoint.get("loss", None)
+
+    return model, optimizer, epoch, loss
 
 
-def check_accuracy(loader, model, device="cuda"):
+def calculate_val_loss(loader: DataLoader, model: nn.Module, device: str = "cuda"):
     """
     Check the accuracy of the model on the validation/test set.
 
     Args:
-        loader: DataLoader for validation or test data.
-        model: The model to evaluate.
-        device: The device to use for evaluation, e.g., 'cuda' or 'cpu'.
+        loader (DataLoader): DataLoader for the validation/test set.
+        model (nn.Module): The trained model to evaluate.
+        device (str): The device to load the model onto ('cuda' or 'cpu').
     """
     model.eval()
-    correct = 0
-    total = 0
+    val_loss = 0.0
 
     with torch.no_grad():
         for data, targets in loader:
@@ -76,45 +86,85 @@ def check_accuracy(loader, model, device="cuda"):
 
             # Forward pass
             outputs = model(data)
+            loss_fn = nn.CrossEntropyLoss()
+            loss = loss_fn(outputs, targets.long())
 
-            # Calculate accuracy (assuming binary classification with BCE loss)
-            predicted = (torch.sigmoid(outputs) > 0.5).float()
-            correct += (predicted == targets).sum()
-            total += targets.numel()
+            val_loss += loss.item() * data.size(0)
 
-    accuracy = 100 * correct / total
-    print(f"Accuracy: {accuracy:.2f}%")
-    model.train()
+    avg_val_loss = val_loss / len(loader)
+    print(f"Loss: {avg_val_loss:.2f}")
 
 
-def save_predictions_as_imgs(loader, model, epoch, folder="saved_images", device="cuda"):
+def save_model(model: nn.Module, filename: str = "unet_model_trained.pth"):
     """
-    Save model predictions as images to a specified folder.
+    Save only the model's state dict after training.
 
     Args:
-        loader: DataLoader for validation data.
-        model: The model to make predictions.
-        epoch: Current epoch number.
-        folder: Folder where the images will be saved.
-        device: The device to use for predictions, e.g., 'cuda' or 'cpu'.
+        model (nn.Module): The trained model to save.
+        filename (str): Path where to save the model state dictionary.
     """
-    model.eval()
-    os.makedirs(folder, exist_ok=True)
+    torch.save(model.state_dict(), filename)
+    print(f"Model saved to {filename}")
 
-    with torch.no_grad():
-        for batch_id, (data, targets) in enumerate(loader):
-            data = data.to(device)
-            targets = targets.to(device)
 
-            # Forward pass
-            predictions = model(data)
+def dice_loss(
+    pred: torch.Tensor, target: torch.Tensor, smooth: float = 1e-6
+) -> torch.Tensor:
+    """
+    Compute the Dice Loss between the predicted and target masks.
+    Dice loss is 1 minus the Dice coefficient.
 
-            # Convert predictions to binary mask
-            predicted_mask = torch.sigmoid(predictions) > 0.5
+    Args:
+        pred (torch.Tensor): Predicted mask from the model.
+        target (torch.Tensor): Ground truth mask.
+        smooth (float): Smoothing factor to avoid division by zero.
 
-            # Save images and predictions
-            for i in range(data.size(0)):
-                save_image(predicted_mask[i], os.path.join(folder, f"epoch{epoch}_batch{batch_id}_image{i}_pred.png"))
-                save_image(targets[i], os.path.join(folder, f"epoch{epoch}_batch{batch_id}_image{i}_target.png"))
+    Returns:
+        torch.Tensor: Dice loss value.
+    """
+    target = target.long()
+    pred = torch.softmax(pred, dim=1)  # Convert logits to probabilities
 
-    model.train()
+    # Convert target to one-hot encoding
+    target_one_hot = (
+        torch.nn.functional.one_hot(target, num_classes=pred.size(1))
+        .permute(0, 3, 1, 2)
+        .float()
+    )
+
+    intersection = (pred * target_one_hot).sum(dim=(1, 2, 3))
+    union = pred.sum(dim=(1, 2, 3)) + target_one_hot.sum(dim=(1, 2, 3))
+
+    dice_coeff = (2.0 * intersection + smooth) / (
+        union + smooth
+    )  # Smoothing to avoid division by zero
+
+    return 1 - dice_coeff.mean()
+
+
+def combined_loss(
+    pred: torch.Tensor,
+    target: torch.Tensor,
+    weight_ce: float = 0.5,
+    weight_dice: float = 0.5,
+) -> torch.Tensor:
+    """
+    Compute the combined loss: weighted sum of Cross-Entropy Loss and Dice Loss.
+
+    Args:
+        pred (torch.Tensor): Predicted mask from the model.
+        target (torch.Tensor): Ground truth mask.
+        weight_ce (float): Weight for the Cross-Entropy Loss.
+        weight_dice (float): Weight for the Dice Loss.
+
+    Returns:
+        torch.Tensor: Combined loss value.
+    """
+    # Compute losses
+    ce_loss = F.cross_entropy(pred, target)
+    dice_loss_value = dice_loss(pred, target.float())
+
+    # Weighted sum of the two losses
+    loss = weight_ce * ce_loss + weight_dice * dice_loss_value
+
+    return loss
