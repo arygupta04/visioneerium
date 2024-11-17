@@ -32,38 +32,24 @@ git clone https://github.com/arygupta04/visioneerium.git
 # Navigate to the directory
 cd visioneerium
 
-# Install libraries and packages
-# PyTorch and related libraries
-pip install torch torchvision torchaudio
-
-# Albumentations and image processing
-pip install albumentations opencv-python-headless pillow matplotlib
-
-# TQDM for progress bars
-pip install tqdm
-
-# Segmentation models (includes pre-trained models for PyTorch)
-pip install segmentation-models-pytorch
-
-# PyCOCOTools for working with COCO dataset annotations
-pip install pycocotools
-
-# Pandas for data handling
-pip install pandas
-
-# simplecrf library for CRF (Conditional Random Fields) post-processing
-pip install simplecrf
-
-# Timm for pre-trained models
-pip install timm
+# Install the required packages
+pip install -r requirements.txt
 ```
 
+# Download the Dataset
+
+Download the SeaTurtleID2022 dataset from the following link: https://www.kaggle.com/datasets/wildlifedatasets/seaturtleid2022. Extract the contents of the zip file into the `data` directory. Either keep at the same level as the `src` directory or update the paths in the scripts accordingly.
+
 # Running the project
+
 In the terminal, write:
 
 ```bash
-python train.py
+python -m src.unet.train
 ```
 
-**Note:** Make sure to adjust the file paths in the scripts to match your directory structure and data locations before running them.
+If you want to train the DeepLabv3+ model, run:
 
+```bash
+python -m src.deeplabv3.train
+```
