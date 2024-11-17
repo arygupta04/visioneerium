@@ -13,7 +13,9 @@ import pandas as pd
 
 class TurtleDataset(Dataset):
 
-    def __init__(self, split_type: str, path: str) -> None:
+    def __init__(
+        self, split_type: str, path: str, target_size: tuple[int, int] = (256, 256)
+    ):
         self.path = path
         self.coco = COCO(os.path.join(path, "annotations.json"))
         self.names = os.listdir(path)
@@ -22,6 +24,7 @@ class TurtleDataset(Dataset):
         metadata = pd.read_csv(os.path.join(path, "metadata_splits.csv"))
         self.img_ids = metadata[metadata["split_open"] == split_type]["id"].tolist()
         self.max_width, self.max_height = self.find_max_dimensions()
+        self.target_size = target_size
 
     def generate_mask(self, img_id: int) -> np.ndarray:
         """
@@ -134,9 +137,8 @@ class TurtleDataset(Dataset):
         )
 
         # Resize image and mask
-        target_size = (256, 256)
-        image = cv2.resize(image, target_size)
-        padded_mask = cv2.resize(padded_mask, target_size)
+        image = cv2.resize(image, self.target_size)
+        padded_mask = cv2.resize(padded_mask, self.target_size)
 
         # Convert image and mask to tensor
         transformations = transforms.ToTensor()
@@ -147,7 +149,10 @@ class TurtleDataset(Dataset):
 
 
 def load_data(
-    path: str, batch_size: int = 128, num_workers: int = 0
+    path: str,
+    batch_size: int = 128,
+    num_workers: int = 0,
+    target_size: tuple[int, int] = (256, 256),
 ) -> tuple[DataLoader, DataLoader, DataLoader]:
     """
     Returns dataloaders for training, validation, and test sets.
@@ -156,6 +161,7 @@ def load_data(
         path: path of the dataset.
         batch_size: batch size for dataloaders. Default value: 128.
         num_workers: number of workers for loading data. Default value: 0.
+        target_size: target size for the images. Default value: (256, 256).
 
     Returns:
         train_dataloader: dataloader for training set.
@@ -164,9 +170,9 @@ def load_data(
     """
 
     # Create datasets
-    train_dataset = TurtleDataset("train", path)
-    val_dataset = TurtleDataset("valid", path)
-    test_dataset = TurtleDataset("test", path)
+    train_dataset = TurtleDataset("train", path, target_size=target_size)
+    val_dataset = TurtleDataset("valid", path, target_size=target_size)
+    test_dataset = TurtleDataset("test", path, target_size=target_size)
 
     # Define dataloaders
     train_dataloader = DataLoader(

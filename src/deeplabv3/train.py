@@ -3,11 +3,10 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
-import torch.optim as optim
 import segmentation_models_pytorch as smp
 from matplotlib import pyplot as plt
-from src.unet.original_unet import UNet
 from src.data import load_data
+from src.deeplabv3.model import DeepLabV3Plus
 from src.utils import (
     load_checkpoint,
     save_checkpoint,
@@ -24,6 +23,7 @@ NUM_WORKERS = 6
 PIN_MEMORY = False
 LOAD_MODEL = False
 CHECKPOINT_PATH = "checkpoint_epoch_4.pth.tar"
+TARGET_SIZE = (256, 256)
 
 
 # Function to train the model
@@ -173,11 +173,12 @@ def train(path: str = "data/"):
     Args:
         path: Path to the dataset. Default: "data/".
     """
-    model = smp.Unet(
-        encoder_name="mobilenet_v2",
-        encoder_weights="imagenet",
-        in_channels=3,
-        classes=4,
+    model = DeepLabV3Plus(
+        num_classes=4,
+        backbone="resnet50",
+        aspp_out_channels=256,
+        decoder_channels=256,
+        low_level_channels=48,
     ).to(DEVICE)
 
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
@@ -187,6 +188,7 @@ def train(path: str = "data/"):
         path=path,
         batch_size=BATCH_SIZE,
         num_workers=NUM_WORKERS,
+        target_size=TARGET_SIZE,
     )
 
     loss_list = []
