@@ -2,6 +2,9 @@
 
 This project aims to segment sea turtles from photographs using computer vision and deep learning techniques. We employed two advanced segmentation models: U-Net and DeepLabv3+. The objective was to accurately identify the head, flippers, and carapace of sea turtles in the given dataset, which contains diverse images from different environmental conditions.
 
+[The report can be found here](https://github.com/user-attachments/files/27391729/COMP9517.Group.Project.Report.docx.pdf)
+
+
 # Dataset
 
 We used the SeaTurtleID2022 dataset, which includes 8,729 images spanning 13 years of observations. Each image is annotated to provide detailed segmentations of key body parts of the turtles. This dataset is crucial for training and evaluating the performance of our segmentation models.
